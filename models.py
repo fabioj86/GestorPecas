@@ -26,19 +26,17 @@ class Usuario(db.Model, UserMixin):
 # -----------------------------------------------------------------------------
 # MODELO: MÁQUINA DE PRODUÇÃO
 # -----------------------------------------------------------------------------
+
 class Maquina(db.Model):
     __tablename__ = 'maquinas'
-
     id = db.Column(db.Integer, primary_key=True)
     codigo = db.Column(db.String(30), unique=True, nullable=False)
-    nome = db.Column(db.String(100), nullable=False)
-    setor = db.Column(db.String(50), nullable=False)
-    fabricante = db.Column(db.String(100))
-    status = db.Column(db.String(20), default='Operando')  # Operando, Parada
+    descricao = db.Column(db.String(100), nullable=False)
+    linha = db.Column(db.String(50))  # Ex: Linha 01, Linha de Montagem
+    status = db.Column(db.String(20), default='Operando')  # 'Operando' ou 'Defeito'
 
-    # Relações
-    ordens_servico = db.relationship('OrdemServico', backref='maquina', lazy=True)
-
+    # Relacionamento opcional com ordens de serviço, se desejar expandir depois
+    # movimentacoes = db.relationship('MovimentacaoEstoque', backref='maquina_ref')
 
 # -----------------------------------------------------------------------------
 # MODELO: ITEM / PEÇA DE MANUTENÇÃO

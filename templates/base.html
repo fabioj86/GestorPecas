@@ -30,6 +30,13 @@
                         <li class="nav-item">
                             <a class="nav-link" href="/itens">Peças e Estoque</a>
                         </li>
+                        {% if current_user.role in ['Administrador', 'Tecnico'] %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('listar_maquinas') }}">
+                                <i class="bi bi-gear-wide-connected"></i> Máquinas
+                            </a>
+                        </li>
+                        {% endif %}
 
                         {% if current_user.role == 'Administrador' %}
                         <li class="nav-item">

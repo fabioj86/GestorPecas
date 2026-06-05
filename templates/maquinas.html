@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-gear-wide-connected"></i> Controle de Máquinas</h2>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovaMaquina">+ Nova Máquina</button>
+</div>
+
+<div class="card mb-4 bg-light">
+    <div class="card-body">
+        <form method="GET" action="/maquinas" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="codigo" class="form-control" placeholder="Código" value="{{ request.args.get('codigo', '') }}">
+            </div>
+            <div class="col-md-4">
+                <input type="text" name="descricao" class="form-control" placeholder="Descrição" value="{{ request.args.get('descricao', '') }}">
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="linha" class="form-control" placeholder="Linha/Setor" value="{{ request.args.get('linha', '') }}">
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary">Pesquisar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>Código</th>
+                    <th>Descrição</th>
+                    <th>Linha</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in maquinas %}
+                <tr>
+                    <td class="fw-bold">{{ m.codigo }}</td>
+                    <td>{{ m.descricao }}</td>
+                    <td>{{ m.linha }}</td>
+                    <td>
+                        {% if m.status == 'Operando' %}
+                            <span class="badge bg-success"><i class="bi bi-check-circle"></i> Operando</span>
+                        {% else %}
+                            <span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Defeito</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary">Editar</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovaMaquina" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Cadastrar Novo Equipamento</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/maquina/nova" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Código da Máquina *</label>
+                        <input type="text" class="form-control" name="codigo" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição / Nome *</label>
+                        <input type="text" class="form-control" name="descricao" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Linha de Produção</label>
+                        <input type="text" class="form-control" name="linha" placeholder="Ex: Linha A, Setor Hidráulica">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Status Inicial</label>
+                        <select class="form-select" name="status">
+                            <option value="Operando">Operando</option>
+                            <option value="Defeito">Com Defeito / Parada</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Salvar Equipamento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

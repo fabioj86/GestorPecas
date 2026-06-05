@@ -178,6 +178,59 @@ def obter_detalhes_item(item_id):
         'imagens': imagens
     })
 
+# -----------------------------------------------------------------------------
+# ROTA: LISTAR MÁQUINAS (Com Pesquisa)
+# -----------------------------------------------------------------------------
+@app.route('/maquinas')
+@login_required
+def listar_maquinas():
+    # BARREIRA DE ACESSO: Somente Admin e Tecnico
+    if current_user.role not in ['Administrador', 'Tecnico']:
+        flash('Acesso restrito à equipe técnica.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # Captura os termos de pesquisa do formulário GET
+    q_codigo = request.args.get('codigo', '')
+    q_descricao = request.args.get('descricao', '')
+    q_linha = request.args.get('linha', '')
+
+    # Constrói a consulta dinamicamente
+    query = Maquina.query
+    if q_codigo:
+        query = query.filter(Maquina.codigo.ilike(f'%{q_codigo}%'))
+    if q_descricao:
+        query = query.filter(Maquina.descricao.ilike(f'%{q_descricao}%'))
+    if q_linha:
+        query = query.filter(Maquina.linha.ilike(f'%{q_linha}%'))
+
+    maquinas = query.order_by(Maquina.codigo).all()
+    return render_template('maquinas.html', maquinas=maquinas)
+
+# -----------------------------------------------------------------------------
+# ROTA: CADASTRAR NOVA MÁQUINA
+# -----------------------------------------------------------------------------
+@app.route('/maquina/nova', methods=['POST'])
+@login_required
+def nova_maquina():
+    if current_user.role not in ['Administrador', 'Tecnico']:
+        return "Acesso Negado", 403
+
+    codigo = request.form.get('codigo')
+    descricao = request.form.get('descricao')
+    linha = request.form.get('linha')
+    status = request.form.get('status', 'Operando')
+
+    # Validação de unicidade
+    if Maquina.query.filter_by(codigo=codigo).first():
+        flash(f'Erro: O código {codigo} já está cadastrado!', 'danger')
+        return redirect(url_for('listar_maquinas'))
+
+    nova = Maquina(codigo=codigo, descricao=descricao, linha=linha, status=status)
+    db.session.add(nova)
+    db.session.commit()
+
+    flash(f'Máquina {codigo} cadastrada com sucesso!', 'success')
+    return redirect(url_for('listar_maquinas'))
 
 # -----------------------------------------------------------------------------
 # ROTA: CADASTRAR NOVO ITEM
