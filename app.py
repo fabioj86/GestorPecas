@@ -65,6 +65,61 @@ def logout():
 
 
 # -----------------------------------------------------------------------------
+# ROTA: LISTAR USUÁRIOS (Tela de Gerenciamento)
+# -----------------------------------------------------------------------------
+@app.route('/usuarios')
+@login_required
+def listar_usuarios():
+    # BARREIRA DE SEGURANÇA: Verifica se é Administrador
+    if current_user.role != 'Administrador':
+        flash('Acesso negado: Área restrita para administradores.', 'danger')
+        return redirect(url_for('dashboard'))
+
+    # Busca todos os usuários no banco
+    usuarios = Usuario.query.order_by(Usuario.id).all()
+    return render_template('usuarios.html', usuarios=usuarios)
+
+
+# -----------------------------------------------------------------------------
+# ROTA: CADASTRAR NOVO USUÁRIO
+# -----------------------------------------------------------------------------
+@app.route('/usuario/novo', methods=['POST'])
+@login_required
+def novo_usuario():
+    # BARREIRA DE SEGURANÇA NA ROTA DE GRAVAÇÃO
+    if current_user.role != 'Administrador':
+        flash('Acesso negado!', 'danger')
+        return redirect(url_for('dashboard'))
+
+    username = request.form.get('username')
+    email = request.form.get('email')
+    senha = request.form.get('password')
+    role = request.form.get('role')
+
+    # Validação: Verifica se o nome de usuário já existe no banco
+    usuario_existente = Usuario.query.filter_by(username=username).first()
+    if usuario_existente:
+        flash('Erro: Este nome de usuário já está em uso no sistema.', 'danger')
+        return redirect(url_for('listar_usuarios'))
+
+    # Criptografa a senha digitada antes de salvar
+    senha_criptografada = generate_password_hash(senha)
+
+    novo_user = Usuario(
+        username=username,
+        email=email,
+        password_hash=senha_criptografada,
+        role=role
+    )
+
+    db.session.add(novo_user)
+    db.session.commit()
+
+    flash(f'Usuário {username} cadastrado com sucesso!', 'success')
+    return redirect(url_for('listar_usuarios'))
+
+
+# -----------------------------------------------------------------------------
 # ROTA: DASHBOARD PRINCIPAL
 # -----------------------------------------------------------------------------
 @app.route('/')
@@ -76,7 +131,7 @@ def dashboard():
     total_itens = Item.query.count()
     os_pendentes = OrdemServico.query.filter_by(status='Pendente').count()
 
-    return render_template('dashboard.html',
+    return render_template('paineldecontrole.html',
                            alertas=alertas_criticos,
                            total_maquinas=total_maquinas,
                            total_itens=total_itens,

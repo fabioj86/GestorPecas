@@ -24,9 +24,21 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    <li class="nav-item"><a class="nav-link" href="/">Painel</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/itens">Peças/Stock</a></li>
-                </ul>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('dashboard') }}">Painel de Controle</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/itens">Peças e Estoque</a>
+                        </li>
+
+                        {% if current_user.role == 'Administrador' %}
+                        <li class="nav-item">
+                            <a class="nav-link text-warning fw-bold" href="/usuarios">
+                                <i class="bi bi-people"></i> Usuários
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
                 <span class="navbar-text text-white me-3">Olá, {{ current_user.username }} ({{ current_user.role }})</span>
                 <a href="/logout" class="btn btn-outline-danger btn-sm">Sair</a>
             </div>

@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Gerenciamento de Usuários</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoUsuario">+ Novo Usuário</button>
+</div>
+
+<div class="card shadow">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 text-center align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>ID</th>
+                        <th class="text-start">Usuário</th>
+                        <th class="text-start">E-mail</th>
+                        <th>Nível de Acesso</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr>
+                        <td>{{ u.id }}</td>
+                        <td class="text-start fw-bold">{{ u.username }}</td>
+                        <td class="text-start">{{ u.email }}</td>
+                        <td>
+                            {% if u.role == 'Administrador' %}
+                                <span class="badge bg-danger">{{ u.role }}</span>
+                            {% elif u.role == 'Tecnico' %}
+                                <span class="badge bg-primary">{{ u.role }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ u.role }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center py-4">Nenhum usuário encontrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovoUsuario" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Cadastrar Novo Usuário</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/usuario/novo" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nome de Usuário (Login) *</label>
+                        <input type="text" class="form-control" name="username" required autocomplete="off">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">E-mail Corporativo</label>
+                        <input type="email" class="form-control" name="email">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Senha de Acesso *</label>
+                        <input type="password" class="form-control" name="password" required minlength="6">
+                        <div class="form-text">A senha deve conter no mínimo 6 caracteres.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Nível de Acesso *</label>
+                        <select class="form-select" name="role" required>
+                            <option value="" disabled selected>Selecione um nível...</option>
+                            <option value="Administrador">Administrador (Acesso Total)</option>
+                            <option value="Tecnico">Técnico (Pode dar baixa em peças)</option>
+                            <option value="Almoxarifado">Almoxarifado (Acesso ao estoque e entradas)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar Usuário</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
