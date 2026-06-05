@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2 class="text-secondary">Painel de Controle</h2>
+        <hr>
+    </div>
+</div>
+
+<div class="row text-center mb-4">
+    <div class="col-md-4">
+        <div class="card bg-info text-white shadow">
+            <div class="card-body">
+                <h5 class="card-title">Total de Peças Cadastradas</h5>
+                <h2>{{ total_itens }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-secondary text-white shadow">
+            <div class="card-body">
+                <h5 class="card-title">Máquinas Operando</h5>
+                <h2>{{ total_maquinas }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card bg-warning text-dark shadow">
+            <div class="card-body">
+                <h5 class="card-title">OS Pendentes</h5>
+                <h2>{{ os_pendentes }}</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="card border-danger shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">⚠️ Alertas de Estoque Mínimo</h5>
+            </div>
+            <div class="card-body">
+                {% if alertas %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Código (SKU)</th>
+                                    <th>Descrição</th>
+                                    <th>Localização</th>
+                                    <th>Estoque Atual</th>
+                                    <th>Estoque Mínimo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in alertas %}
+                                <tr class="table-danger">
+                                    <td><strong>{{ item.sku }}</strong></td>
+                                    <td>{{ item.descricao }}</td>
+                                    <td>{{ item.localizacao }}</td>
+                                    <td class="text-center fw-bold">{{ item.estoque_atual }}</td>
+                                    <td class="text-center">{{ item.estoque_minimo }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-success fw-bold mb-0">Nenhum item abaixo do estoque mínimo neste momento.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

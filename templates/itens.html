@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Controle de Estoque e Peças</h2>
+    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovoItem">+ Novo Item</button>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-body">
+        <form method="GET" action="/itens" class="row g-3 align-items-center">
+            <div class="col-md-10">
+                <input type="text" class="form-control form-control-lg" name="search" placeholder="Pesquisar por Código, Descrição, Categoria ou Localização..." value="{{ termo_busca }}">
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary btn-lg">Buscar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0 text-center align-middle">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th class="text-start">Descrição</th>
+                        <th>Categoria</th>
+                        <th>Estoque Atual</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in itens %}
+                    <tr style="cursor: pointer;" onclick="abrirDetalhesItem({{ item.id }})">
+                        <td><strong>{{ item.sku }}</strong></td>
+                        <td class="text-start">{{ item.descricao }}</td>
+                        <td>{{ item.categoria }}</td>
+                        <td>
+                            {% if item.estoque_atual <= item.estoque_minimo %}
+                                <span class="badge bg-danger fs-6">{{ item.estoque_atual }}</span>
+                            {% else %}
+                                <span class="badge bg-success fs-6">{{ item.estoque_atual }}</span>
+                            {% endif %}
+                        </td>
+                        <td onclick="event.stopPropagation();"> <button class="btn btn-sm btn-outline-primary" onclick="abrirModalMovimentacao({{ item.id }}, 'Entrada')">Entrada</button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="abrirModalMovimentacao({{ item.id }}, 'Baixa')">Baixa</button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center py-4 text-muted">Nenhum item encontrado.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetalhesItem" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="modalTitle">Detalhes da Peça</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <img id="itemImagemPrincipal" src="/static/img/placeholder.png" alt="Imagem da Peça" class="imagem-proporcional shadow-sm mb-2">
+                        <div id="galeriaMiniaturas" class="d-flex justify-content-center gap-2 mt-2">
+                            </div>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        <table class="table table-bordered">
+                            <tbody>
+                                <tr><th class="bg-light w-25">Código (SKU):</th><td id="infoSku"></td></tr>
+                                <tr><th class="bg-light">Descrição:</th><td id="infoDescricao"></td></tr>
+                                <tr><th class="bg-light">Categoria:</th><td id="infoCategoria"></td></tr>
+                                <tr><th class="bg-light">Localização:</th><td id="infoLocalizacao"></td></tr>
+                                <tr><th class="bg-light">Preço Médio:</th><td id="infoPreco"></td></tr>
+                            </tbody>
+                        </table>
+                        
+                        <div class="row text-center mt-4">
+                            <div class="col-4">
+                                <div class="p-3 border bg-light rounded">
+                                    <small class="text-muted d-block">Estoque Mínimo</small>
+                                    <strong class="fs-4" id="infoEstoqueMin"></strong>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-3 border border-primary bg-primary text-white rounded shadow-sm">
+                                    <small class="d-block">Estoque Atual</small>
+                                    <strong class="fs-3" id="infoEstoqueAtual"></strong>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-3 border bg-light rounded">
+                                    <small class="text-muted d-block">Estoque Máximo</small>
+                                    <strong class="fs-4" id="infoEstoqueMax"></strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalMovimentacao" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="tituloMovimentacao">Movimentação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/estoque/movimentar" method="POST">
+                <div class="modal-body">
+                    <input type="hidden" name="item_id" id="mov_item_id">
+                    <input type="hidden" name="tipo" id="mov_tipo">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Quantidade</label>
+                        <input type="number" class="form-control" name="quantidade" min="1" required>
+                    </div>
+                    
+                    <div class="mb-3" id="divNotaFiscal" style="display: none;">
+                        <label class="form-label">Número da Nota Fiscal / Pedido</label>
+                        <input type="text" class="form-control" name="nota_fiscal">
+                    </div>
+                    
+                    <div class="mb-3" id="divOrdemServico" style="display: none;">
+                        <label class="form-label">Vincular Ordem de Serviço (Opcional)</label>
+                        <input type="number" class="form-control" name="os_id" placeholder="ID da O.S.">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Confirmar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovoItem" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">Cadastrar Nova Peça</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/item/novo" method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Código (SKU) *</label>
+                            <input type="text" class="form-control" name="sku" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Categoria</label>
+                            <input type="text" class="form-control" name="categoria" placeholder="Ex: Elétrica, Hidráulica...">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição *</label>
+                        <input type="text" class="form-control" name="descricao" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Fornecedor</label>
+                            <input type="text" class="form-control" name="fornecedor">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Preço Unitário (R$)</label>
+                            <input type="text" class="form-control" name="preco_unitario" placeholder="Ex: 150.50">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Localização</label>
+                            <input type="text" class="form-control" name="localizacao" placeholder="Ex: Prateleira B2">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Estoque Mínimo</label>
+                            <input type="number" class="form-control" name="estoque_minimo" value="0">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Estoque Máximo</label>
+                            <input type="number" class="form-control" name="estoque_maximo" value="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Imagens da Peça (Pode selecionar várias)</label>
+                        <input type="file" class="form-control" name="imagens" accept="image/*" multiple>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Salvar Cadastro</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Função assíncrona (AJAX) para buscar os detalhes do item no Backend
+async function abrirDetalhesItem(itemId) {
+    try {
+        const response = await fetch(`/api/item/${itemId}`);
+        const data = await response.json();
+        
+        // Preenche os dados no HTML do Modal
+        document.getElementById('infoSku').innerText = data.sku;
+        document.getElementById('infoDescricao').innerText = data.descricao;
+        document.getElementById('infoCategoria').innerText = data.categoria || 'N/A';
+        document.getElementById('infoLocalizacao').innerText = data.localizacao || 'N/A';
+        document.getElementById('infoPreco').innerText = `R$ ${data.preco.toFixed(2).replace('.', ',')}`;
+        document.getElementById('infoEstoqueAtual').innerText = data.estoque_atual;
+        document.getElementById('infoEstoqueMin').innerText = data.estoque_minimo;
+        document.getElementById('infoEstoqueMax').innerText = data.estoque_maximo;
+        
+        // Lógica de imagens
+        const imgPrincipal = document.getElementById('itemImagemPrincipal');
+        if (data.imagens && data.imagens.length > 0) {
+            imgPrincipal.src = `/static/uploads/${data.imagens[0]}`;
+            // Aqui poderia ser implementado um loop para popular as miniaturas em 'galeriaMiniaturas'
+        } else {
+            imgPrincipal.src = 'https://via.placeholder.com/400?text=Sem+Imagem';
+        }
+        
+        // Abre o Modal usando Bootstrap JS
+        var myModal = new bootstrap.Modal(document.getElementById('modalDetalhesItem'));
+        myModal.show();
+        
+    } catch (error) {
+        alert("Erro ao carregar as informações do item.");
+        console.error(error);
+    }
+}
+
+// Função para abrir o modal de Entrada ou Baixa
+function abrirModalMovimentacao(itemId, tipo) {
+    document.getElementById('mov_item_id').value = itemId;
+    document.getElementById('mov_tipo').value = tipo;
+    
+    document.getElementById('tituloMovimentacao').innerText = `${tipo} de Estoque`;
+    
+    // Mostra/Esconde campos dependendo se é Entrada ou Baixa
+    if (tipo === 'Entrada') {
+        document.getElementById('divNotaFiscal').style.display = 'block';
+        document.getElementById('divOrdemServico').style.display = 'none';
+        document.querySelector('#modalMovimentacao .modal-header').className = 'modal-header bg-success text-white';
+    } else {
+        document.getElementById('divNotaFiscal').style.display = 'none';
+        document.getElementById('divOrdemServico').style.display = 'block';
+        document.querySelector('#modalMovimentacao .modal-header').className = 'modal-header bg-danger text-white';
+    }
+    
+    var modal = new bootstrap.Modal(document.getElementById('modalMovimentacao'));
+    modal.show();
+}
+</script>
+{% endblock %}
