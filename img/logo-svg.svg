@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <circle cx="250" cy="250" r="220" fill="#1e293b" />
+  <circle cx="250" cy="250" r="200" fill="none" stroke="#38bdf8" stroke-width="4" stroke-dasharray="10 15" />
+
+  <g id="gear" fill="#64748b" transform="translate(250,250) scale(1.2)">
+    <path d="M0,-80 L15,-80 L20,-60 C30,-57 40,-51 48,-44 L66,-53 L77,-42 L68,-24 C75,-16 80,-6 83,4 L103,9 L103,24 L83,29 C80,39 75,49 68,57 L77,75 L66,86 L48,77 C40,84 30,90 20,93 L15,113 L0,113 L-5,93 C-15,90 -25,84 -33,77 L-51,86 L-62,75 L-53,57 C-60,49 -65,39 -68,29 L-88,24 L-88,9 L-68,4 C-65,-6 -60,-16 -53,-24 L-62,-42 L-51,-53 L-33,-44 C-25,-51 -15,-57 -5,-60 Z" />
+    <circle cx="0" cy="0" r="55" fill="#1e293b" />
+  </g>
+
+  <g id="box" transform="translate(250, 240) scale(1.1)">
+    <path d="M0,0 L-60,-35 L-60,45 L0,85 Z" fill="#0284c7" />
+    <path d="M0,0 L60,-35 L60,45 L0,85 Z" fill="#0ea5e9" />
+    <path d="M0,-0 L60,-35 L0,-70 L-60,-35 Z" fill="#38bdf8" />
+    
+    <path d="M0,25 L35,5 L35,25 L0,45 Z" fill="#ea580c" />
+    <path d="M0,25 L-35,5 L-35,25 L0,45 Z" fill="#f97316" />
+    <path d="M0,25 L35,5 L0,-15 L-35,5 Z" fill="#ffedd5" opacity="0.8" />
+  </g>
+
+  <path id="textPath" d="M 100,250 A 150,150 0 0,1 400,250" fill="none" />
+</svg>

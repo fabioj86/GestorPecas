@@ -17,40 +17,49 @@
 <body class="bg-light">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">GESTOR DE PEÇAS</a>
-            <button class="navbar-expand-lg navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('dashboard') }}">Painel de Controle</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/itens">Peças e Estoque</a>
-                        </li>
-                        {% if current_user.role in ['Administrador', 'Tecnico'] %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('listar_maquinas') }}">
-                                <i class="bi bi-gear-wide-connected"></i> Máquinas
-                            </a>
-                        </li>
-                        {% endif %}
+    <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
+            <svg class="me-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#38bdf8" stroke="#38bdf8" stroke-width="1.5"/>
+                <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#0ea5e9" stroke-width="1.5"/>
+                <path d="M2 7v10l10 5V12L2 7z" fill="#0284c7" opacity="0.3"/>
+                <circle cx="12" cy="12" r="3" fill="#f97316" />
+            </svg>
+            <span class="fw-bold text-white tracking-wide">GESTOR DE PEÇAS</span>
+        </a>
 
-                        {% if current_user.role == 'Administrador' %}
-                        <li class="nav-item">
-                            <a class="nav-link text-warning fw-bold" href="/usuarios">
-                                <i class="bi bi-people"></i> Usuários
-                            </a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                <span class="navbar-text text-white me-3">Olá, {{ current_user.username }} ({{ current_user.role }})</span>
-                <a href="/logout" class="btn btn-outline-danger btn-sm">Sair</a>
-            </div>
+        <button class="navbar-expand-lg navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('dashboard') }}">Painel de Controle</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/itens">Peças e Estoque</a>
+                </li>
+                {% if current_user.role in ['Administrador', 'Tecnico'] %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('listar_maquinas') }}">
+                        <i class="bi bi-gear-wide-connected"></i> Máquinas
+                    </a>
+                </li>
+                {% endif %}
+
+                {% if current_user.role == 'Administrador' %}
+                <li class="nav-item">
+                    <a class="nav-link text-warning fw-bold" href="/usuarios">
+                        <i class="bi bi-people"></i> Usuários
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            <span class="navbar-text text-white me-3">Olá, {{ current_user.username }} ({{ current_user.role }})</span>
+            <a href="/logout" class="btn btn-outline-danger btn-sm">Sair</a>
         </div>
-    </nav>
+    </div>
+</nav>
 
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
