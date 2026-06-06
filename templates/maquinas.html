@@ -3,7 +3,12 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-gear-wide-connected"></i> Controle de Máquinas</h2>
-    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovaMaquina">+ Nova Máquina</button>
+    <div>
+        <button class="btn btn-warning text-dark fw-bold me-2" data-bs-toggle="modal" data-bs-target="#modalNovaOSFromMaquinas">
+            <i class="bi bi-file-earmark-wrench-fill"></i> + Nova O.S.
+        </button>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovaMaquina">+ Nova Máquina</button>
+    </div>
 </div>
 
 <div class="card mb-4 bg-light">
@@ -30,6 +35,7 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="table-dark">
                 <tr>
+                    <th>Imagem</th>
                     <th>Código</th>
                     <th>Descrição</th>
                     <th>Linha</th>
@@ -39,8 +45,15 @@
             </thead>
             <tbody>
                 {% for m in maquinas %}
-                <tr>
-                    <td class="fw-bold">{{ m.codigo }}</td>
+                <tr style="cursor: pointer;" onclick="abrirModalDetalhes('{{ m.id }}')">
+                    <td>
+                        {% if m.imagens %}
+                            <img src="{{ url_for('static', filename=m.imagens[0].caminho_arquivo) }}" width="50" class="img-thumbnail rounded">
+                        {% else %}
+                            <i class="bi bi-image text-muted" style="font-size: 24px;"></i>
+                        {% endif %}
+                    </td>
+                    <td class="fw-bold text-primary">{{ m.codigo }}</td>
                     <td>{{ m.descricao }}</td>
                     <td>{{ m.linha }}</td>
                     <td>
@@ -51,12 +64,84 @@
                         {% endif %}
                     </td>
                     <td>
-                        <button class="btn btn-sm btn-outline-secondary">Editar</button>
+                       <button class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation(); alert('Função de atualizar em desenvolvimento.');">Atualizar</button>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovaOSFromMaquinas" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-wrench"></i> Abrir Nova Ordem de Serviço (Manutenção)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/ordem/nova" method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Equipamento com Falha *</label>
+                        <select class="form-select" name="maquina_id" required>
+                            <option value="" disabled selected>Selecione a máquina afetada...</option>
+                            {% for maq in todas_maquinas %}
+                                <option value="{{ maq.id }}">{{ maq.codigo }} - {{ maq.descricao }} [Status: {{ maq.status }}]</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Descrição do Defeito / Sintomas Observados *</label>
+                        <textarea class="form-control" name="descricao_defeito" rows="3" required placeholder="Ex: Vazamento de óleo no retentor do eixo principal ou superaquecimento após 1 hora de operação contínua..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Prazo Limite para Resolução *</label>
+                        <input type="date" class="form-control" name="prazo_previsto" required id="prazo_os_input">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-box-seam"></i> Peças e Insumos Previstos para a Manutenção</span>
+                            <button type="button" class="btn btn-xs btn-outline-dark" onclick="adicionarLinhaPeca()">+ Adicionar Item</button>
+                        </label>
+                        <div id="conteinerPecasOS">
+                            <div class="row g-2 mb-2 linha-peca">
+                                <div class="col-md-8">
+                                    <select class="form-select" name="pecas_sku[]">
+                                        <option value="">Selecione uma peça do Almoxarifado...</option>
+                                        {% for p in pecas %}
+                                            <option value="{{ p.sku }}">{{ p.descricao }} (SKU: {{ p.sku }} | Saldo Atual: {{ p.estoque_atual }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" class="form-control" name="pecas_qtd[]" min="1" placeholder="Qtd">
+                                </div>
+                                <div class="col-md-1 d-grid">
+                                    <button type="button" class="btn btn-outline-danger" onclick="removerLinhaPeca(this)"><i class="bi bi-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <small class="text-muted">* O preenchimento de peças ajuda o almoxarifado a efetuar o pré-mapeamento e reserva de estoque.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Anexar Fotos / Evidências do Defeito (Opcional)</label>
+                        <input type="file" class="form-control" name="imagens" multiple accept="image/*">
+                        <small class="text-muted">Selecione uma ou mais fotos mantendo a tecla Ctrl pressionada.</small>
+                    </div>
+
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning text-dark fw-bold">Emitir Ordem de Serviço</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -67,7 +152,7 @@
                 <h5 class="modal-title">Cadastrar Novo Equipamento</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form action="/maquina/nova" method="POST">
+            <form action="/maquina/nova" method="POST" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Código da Máquina *</label>
@@ -88,6 +173,10 @@
                             <option value="Defeito">Com Defeito / Parada</option>
                         </select>
                     </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Imagens do Equipamento</label>
+                        <input type="file" class="form-control" name="imagens" multiple accept="image/*">
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -97,4 +186,142 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modalDetalhesMaquina" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title" id="detalheTitulo">Ficha Técnica e Indicadores</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row align-items-center mb-4">
+                    <div class="col-md-5 text-center shadow-sm p-2 rounded bg-light" id="detalheContainerImagem"></div>
+                    <div class="col-md-7">
+                        <h3 id="detalheNome" class="text-dark fw-bold mb-3"></h3>
+                        <table class="table table-sm table-borderless fs-5">
+                            <tr><th width="45%">Código Tag:</th><td id="detalheCodigo" class="fw-bold text-secondary"></td></tr>
+                            <tr><th>Linha de Produção:</th><td id="detalheLinha"></td></tr>
+                            <tr><th>Status Operacional:</th><td id="detalheStatus"></td></tr>
+                            <tr class="table-danger rounded"><th class="text-danger">⏳ Tempo Parada:</th><td id="detalheTempoParada" class="fw-bold text-danger"></td></tr>
+                            <tr class="table-warning rounded"><th class="text-dark">📅 Previsão Manutenção:</th><td id="detalhePrevisao" class="fw-bold text-dark"></td></tr>
+                        </table>
+                    </div>
+                </div>
+                <hr>
+                <h5 class="text-secondary fw-bold mb-3"><i class="bi bi-calendar-check"></i> Programação & Histórico de Manutenções</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped table-bordered text-center table-sm">
+                        <thead class="table-secondary">
+                            <tr><th>Nº O.S.</th><th class="text-start">Defeito Reportado</th><th>Data Abertura</th><th>Previsão Limite</th><th>Status</th></tr>
+                        </thead>
+                        <tbody id="detalheProgramacaoOS"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar Registro</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Impede a seleção de datas retroativas no prazo da O.S.
+    const inputData = document.getElementById('prazo_os_input');
+    if (inputData) {
+        inputData.min = new Date().toISOString().split('T')[0];
+    }
+});
+
+// Adiciona dinamicamente uma nova linha para especificação de peça/quantidade
+function adicionarLinhaPeca() {
+    const conteiner = document.getElementById('conteinerPecasOS');
+    const novaLinha = document.createElement('div');
+    novaLinha.className = 'row g-2 mb-2 linha-peca';
+
+    const primeiroSelectOptions = document.querySelector('.linha-peca select').innerHTML;
+
+    novaLinha.innerHTML = `
+        <div class="col-md-8">
+            <select class="form-select" name="pecas_sku[]">
+                ${primeiroSelectOptions}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <input type="number" class="form-control" name="pecas_qtd[]" min="1" placeholder="Qtd">
+        </div>
+        <div class="col-md-1 d-grid">
+            <button type="button" class="btn btn-outline-danger" onclick="removerLinhaPeca(this)"><i class="bi bi-trash"></i></button>
+        </div>
+    `;
+    conteiner.appendChild(novaLinha);
+}
+
+// Remove uma linha de peças adicionada
+function removerLinhaPeca(botao) {
+    const linhas = document.querySelectorAll('.linha-peca');
+    if (linhas.length > 1) {
+        botao.closest('.linha-peca').remove();
+    } else {
+        alert("Pelo menos uma linha deve ser mantida. Se não for prever peças, basta deixar os campos em branco.");
+    }
+}
+
+// Requisição e Exibição da Ficha Detalhada da Máquina (Ação de clique na linha da tabela)
+async function abrirModalDetalhes(maquinaId) {
+    try {
+        const response = await fetch(`/api/maquina/${maquinaId}`);
+        if (!response.ok) throw new Error('Falha ao processar dados.');
+        const data = await response.json();
+
+        document.getElementById('detalheTitulo').innerText = `Ficha de Manutenção: ${data.codigo}`;
+        document.getElementById('detalheNome').innerText = data.descricao;
+        document.getElementById('detalheCodigo').innerText = data.codigo;
+        document.getElementById('detalheLinha').innerText = data.linha || 'Setor Não Cadastrado';
+        document.getElementById('detalheTempoParada').innerText = data.tempo_parada;
+        document.getElementById('detalhePrevisao').innerText = data.previsao_manutencao;
+
+        const statusContainer = document.getElementById('detalheStatus');
+        if (data.status === 'Operando') {
+            statusContainer.innerHTML = '<span class="badge bg-success fs-6"><i class="bi bi-check-circle"></i> Operando</span>';
+        } else {
+            statusContainer.innerHTML = '<span class="badge bg-danger fs-6"><i class="bi bi-exclamation-triangle"></i> Parada (Defeito)</span>';
+        }
+
+        const imgBox = document.getElementById('detalheContainerImagem');
+        if (data.imagens && data.imagens.length > 0) {
+            imgBox.innerHTML = `<img src="/static/${data.imagens[0]}" class="img-fluid rounded border shadow-sm" style="max-height: 200px; object-fit: cover;">`;
+        } else {
+            imgBox.innerHTML = `<div class="py-4 text-muted"><i class="bi bi-image" style="font-size: 50px;"></i><br><small>Sem Foto</small></div>`;
+        }
+
+        const listBody = document.getElementById('detalheProgramacaoOS');
+        listBody.innerHTML = '';
+        if (data.programacao_os && data.programacao_os.length > 0) {
+            data.programacao_os.forEach(os => {
+                let badgeStyle = os.status === 'Pendente' ? '<span class="badge bg-warning text-dark">Pendente</span>' :
+                                 os.status === 'Em Andamento' ? '<span class="badge bg-info">Em Andamento</span>' : '<span class="badge bg-success">Concluída</span>';
+                listBody.innerHTML += `
+                    <tr>
+                        <td><strong>#${os.id}</strong></td>
+                        <td class="text-start">${os.descricao_defeito}</td>
+                        <td>${os.data_abertura}</td>
+                        <td class="fw-bold">${os.prazo_previsto}</td>
+                        <td>${badgeStyle}</td>
+                    </tr>`;
+            });
+        } else {
+            listBody.innerHTML = `<tr><td colspan="5" class="text-muted p-3">Nenhuma O.S. registrada para esta máquina.</td></tr>`;
+        }
+
+        var modalFicha = new bootstrap.Modal(document.getElementById('modalDetalhesMaquina'));
+        modalFicha.show();
+    } catch (erro) {
+        alert("Não foi possível carregar os dados desta máquina.");
+        console.error(erro);
+    }
+}
+</script>
 {% endblock %}

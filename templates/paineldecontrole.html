@@ -35,7 +35,7 @@
     </div>
 </div>
 
-<div class="row">
+<div class="row mb-4">
     <div class="col-md-12">
         <div class="card border-danger shadow">
             <div class="card-header bg-danger text-white">
@@ -74,4 +74,67 @@
         </div>
     </div>
 </div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-danger shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-octagon-fill"></i> Alertas de Ordens de Serviço em Atraso</h5>
+            </div>
+            <div class="card-body">
+                {% if os_atrasadas %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 10%;">Nº O.S.</th>
+                                    <th style="width: 30%;">Equipamento / Máquina</th>
+                                    <th style="width: 45%;">Defeito Relatado</th>
+                                    <th style="width: 15%;" class="text-center">Venceu em</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for os in os_atrasadas %}
+                                <tr class="table-danger align-middle">
+                                    <td><strong>#{{ os.id }}</strong></td>
+                                    <td>{{ os.maquina.descricao }}</td>
+                                    <td>{{ os.descricao_defeito }}</td>
+                                    <td class="text-center fw-bold text-danger">{{ os.prazo_previsto.strftime('%d/%m/%Y') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="text-success fw-bold mb-0">Nenhuma ordem de serviço em atraso neste momento.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if os_no_prazo_critico %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-warning shadow">
+            <div class="card-header bg-warning text-dark fw-bold">
+                <i class="bi bi-clock-history"></i> Prazos Limite Próximos de Finalizar (Atenção)
+            </div>
+            <div class="card-body">
+                <ul class="list-group mb-0">
+                    {% for os in os_no_prazo_critico %}
+                    <li class="list-group-item list-group-item-warning d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>O.S. #{{ os.id }}</strong> - Máquina: {{ os.maquina.descricao }} (Prazo: {{ os.prazo_previsto.strftime('%d/%m/%Y') }})
+                        </div>
+                        <span class="badge bg-warning text-dark">Prazo Crítico</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}

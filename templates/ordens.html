@@ -1,0 +1,120 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-file-earmark-wrench"></i> Ordens de Serviço (Manutenção)</h2>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaOS">+ Nova O.S.</button>
+</div>
+
+<div class="card shadow">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-dark">
+                <tr>
+                    <th>Nº O.S.</th>
+                    <th>Equipamento / Máquina</th>
+                    <th>Defeito Relatado</th>
+                    <th>Prazo Limite</th>
+                    <th>Status</th>
+                    <th>Insumos Previstos</th>
+                    <th>Anexos</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for os in ordens %}
+                <tr>
+                    <td class="fw-bold">#{{ os.id }}</td>
+                    <td><span class="badge bg-secondary">{{ os.maquina.codigo }}</span> {{ os.maquina.descricao }}</td>
+                    <td>{{ os.descricao_defeito }}</td>
+                    <td>{{ os.prazo_previsto.strftime('%d/%m/%Y') }}</td>
+                    <td>
+                        {% if os.status == 'Pendente' %}
+                            <span class="badge bg-warning text-dark">Pendente</span>
+                        {% else %}
+                            <span class="badge bg-success">Concluída</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <small>
+                        {% for p in os.itens_previstos %}
+                            • {{ p.item.descricao }} (Qtd: {{ p.quantidade_prevista }})<br>
+                        {% endfor %}
+                        </small>
+                    </td>
+                    <td>
+                        {% for img in os.imagens %}
+                            <a href="{{ url_for('static', filename=img.caminho_arquivo) }}" target="_blank">
+                                <img src="{{ url_for('static', filename=img.caminho_arquivo) }}" width="40" class="img-thumbnail">
+                            </a>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovaOS" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Abertura de Manutenção Preventiva / Corretiva</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/ordem/nova" method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Identificação da Máquina *</label>
+                            <select class="form-select" name="maquina_id" required>
+                                <option value="">Selecione a máquina...</option>
+                                {% for m in maquinas %}
+                                    <option value="{{ m.id }}">{{ m.codigo }} - {{ m.descricao }} ({{ m.linha }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Prazo Previsto de Entrega *</label>
+                            <input type="date" class="form-control" name="prazo_previsto" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Descrição do Defeito / Escopo do Serviço *</label>
+                        <textarea class="form-control" name="descricao_defeito" rows="3" required placeholder="Detalhe o problema apresentado ou o plano preventivo..."></textarea>
+                    </div>
+
+                    <div class="card mb-3 border-secondary">
+                        <div class="card-header bg-light fw-bold">Peças/Componentes Estimados para Gasto</div>
+                        <div class="card-body">
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-8">
+                                    <select class="form-select" name="pecas_sku[]">
+                                        <option value="">Selecione uma peça do almoxarifado...</option>
+                                        {% for p in pecas %}
+                                            <option value="{{ p.sku }}">{{ p.descricao }} (Saldo: {{ p.estoque_atual }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <input type="number" class="form-control" name="pecas_qtd[]" min="1" placeholder="Qtd">
+                                </div>
+                            </div>
+                            <small class="text-muted">* Caso precise mapear mais peças, o almoxarifado vincula na baixa direta.</small>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Fotos do Estado Atual da Máquina (Opcional)</label>
+                        <input type="file" class="form-control" name="imagens" multiple accept="image/*">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Abrir Ordem de Serviço</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
