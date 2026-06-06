@@ -336,8 +336,9 @@ def obter_detalhes_maquina(maquina_id):
 
 
 # -----------------------------------------------------------------------------
-# ROTA: LISTAR MÁQUINAS (COM SUPORTE PARA CRIAÇÃO DE O.S.)
+# ROTA: LISTAR MÁQUINAS (ATUALIZADA PARA ENVIAR DADOS DA NOVA O.S. GLOBAL)
 # -----------------------------------------------------------------------------
+
 @app.route('/maquinas')
 @login_required
 def listar_maquinas():
@@ -359,17 +360,21 @@ def listar_maquinas():
 
     maquinas = query.order_by(Maquina.codigo).all()
 
-    # --- NOVAS CONSULTAS: Alimenta os seletores do modal de Nova O.S. ---
-    pecas_disponiveis = Item.query.order_by(Item.descricao).all()
-    todas_maquinas = Maquina.query.order_by(Maquina.codigo).all()
+    # Consultas para alimentar os modais de abertura de Ordens de Serviço
+    pecas_disponiveis = Item.query.all()
+    todas_maquinas_cadastradas = Maquina.query.order_by(Maquina.codigo).all()
 
-    return render_template('maquinas.html',
-                           maquinas=maquinas,
-                           todas_maquinas=todas_maquinas,
-                           pecas=pecas_disponiveis)
+    return render_template(
+        'maquinas.html',
+        maquinas=maquinas,
+        pecas=pecas_disponiveis,
+        todas_maquinas=todas_maquinas_cadastradas
+    )
+
 # -----------------------------------------------------------------------------
 # ROTA: CADASTRAR NOVA MÁQUINA
 # -----------------------------------------------------------------------------
+
 @app.route('/maquina/nova', methods=['POST'])
 @login_required
 def nova_maquina():
@@ -405,8 +410,174 @@ def nova_maquina():
 
 
 # -----------------------------------------------------------------------------
+# ROTA: EDITAR CADASTRO DA MÁQUINA (EXCLUSIVA ADMINISTRADOR)
+# -----------------------------------------------------------------------------
+
+@app.route('/maquina/editar/<int:maquina_id>', methods=['POST'])
+@login_required
+def editar_maquina(maquina_id):
+    # Proteção de segurança no nível do servidor (Backend)
+    if current_user.role != 'Administrador':
+        flash('Acesso negado: Apenas administradores podem editar o cadastro de equipamentos.', 'danger')
+        return redirect(url_for('listar_maquinas'))
+
+    maquina = Maquina.query.get_or_404(maquina_id)
+
+    codigo = request.form.get('codigo')
+    descricao = request.form.get('descricao')
+    linha = request.form.get('linha')
+    status = request.form.get('status')
+
+    # Validação: Impedir que o código alterado coincida com outra máquina já existente
+    maquina_existente = Maquina.query.filter(Maquina.codigo == codigo, Maquina.id != maquina_id).first()
+    if maquina_existente:
+        flash(f'Erro: O código "{codigo}" já está em uso por outra máquina cadastrada!', 'danger')
+        return redirect(url_for('listar_maquinas'))
+
+    # Atualização das propriedades do banco de dados
+    maquina.codigo = codigo
+    maquina.descricao = descricao
+    maquina.linha = linha
+    maquina.status = status
+
+    db.session.commit()
+    flash(f'Equipamento {codigo} modificado com sucesso!', 'success')
+    return redirect(url_for('listar_maquinas'))
+
+# -----------------------------------------------------------------------------
+# ROTA: EXCLUIR MÁQUINA (EXCLUSIVA ADMINISTRADOR)
+# -----------------------------------------------------------------------------
+
+@app.route('/maquina/excluir/<int:maquina_id>', methods=['POST'])
+@login_required
+def excluir_maquina(maquina_id):
+    # Validar segurança no nível do servidor
+    if current_user.role != 'Administrador':
+        flash('Acesso negado: Apenas administradores podem remover equipamentos.', 'danger')
+        return redirect(url_for('listar_maquinas'))
+
+    maquina = Maquina.query.get_or_404(maquina_id)
+
+    # Regra de Integridade: Impedir exclusão de máquina com histórico de manutenção ativo
+    if maquina.ordens_servico:
+        flash(
+            f'Não é possível excluir a máquina "{maquina.codigo}" porque ela possui Ordens de Serviço vinculadas ao seu histórico.',
+            'danger')
+        return redirect(url_for('listar_maquinas'))
+
+    try:
+        # 1. Remover arquivos físicos de imagens associados à máquina do disco
+        for img in maquina.imagens:
+            caminho_completo = os.path.join('static', img.caminho_arquivo)
+            if os.path.exists(caminho_completo):
+                try:
+                    os.remove(caminho_completo)
+                except Exception as err:
+                    print(f"Aviso: Não foi possível deletar o arquivo físico {caminho_completo}. Erro: {err}")
+
+            # Deletar registro da imagem na tabela MaquinaImagem
+            db.session.delete(img)
+
+        # 2. Remover o registro da máquina
+        codigo_removido = maquina.codigo
+        db.session.delete(maquina)
+        db.session.commit()
+
+        flash(f'Máquina {codigo_removido} e suas dependências foram removidas com sucesso!', 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro interno ao tentar processar a exclusão: {str(e)}', 'danger')
+
+    return redirect(url_for('listar_maquinas'))
+
+
+# ----------------------------------------------------------------------------
+# ROTA: FINALIZAR MANUTENÇÃO (BOTÃO FINALIZAR)
+# ----------------------------------------------------------------------------
+
+@app.route('/maquinas/finalizar-manutencao', methods=['POST'])
+@login_required
+def finalizar_manutencao():
+    maquina_id = request.form.get('maquina_id')
+    detalhes = request.form.get('detalhes')
+
+    # 1. Busca a máquina no banco de dados
+    maquina = Maquina.query.get_or_404(maquina_id)
+
+    # 2. Atualiza o status da máquina para Operando
+    maquina.status = 'Operando'
+
+    # 3. Localiza a Ordem de Serviço "Pendente" vinculada a essa máquina
+    # (Adaptado com base na estrutura padrão de relacionamentos do SQLAlchemy)
+    ordem_aberta = OrdemServico.query.filter_by(maquina_id=maquina.id, status='Pendente').first()
+
+    if ordem_aberta:
+        ordem_aberta.status = 'Finalizada'
+        ordem_aberta.diagnostico_tecnico = detalhes  # Salva o texto inserido na OS
+        ordem_aberta.data_fechamento = datetime.utcnow()
+        flash(f'Manutenção finalizada! OS #{ordem_aberta.id} baixada e máquina liberada.', 'success')
+    else:
+        flash('Máquina atualizada para Operando, mas nenhuma O.S. pendente foi encontrada.', 'warning')
+
+    # 4. Grava no log de auditoria (se o seu sistema possuir a tabela AuditLog ativa)
+    try:
+        log = AuditLog(
+            usuario_id=current_user.id,
+            acao=f"Finalizou manutenção da máquina ID {maquina.id}. Relato: {detalhes}"
+        )
+        db.session.add(log)
+    except Exception:
+        pass
+
+    db.session.commit()
+    return redirect(url_for('listar_maquinas'))  # Ajuste o nome da rota se necessário
+
+
+# ----------------------------------------------------------------------------
+# ROTA: PRORROGAR PRAZO DA MANUTENÇÃO (BOTÃO PRORROGAR)
+# ----------------------------------------------------------------------------
+
+@app.route('/maquinas/prorrogagar-manutencao', methods=['POST'])
+@login_required
+def prorrogar_manutencao():
+    maquina_id = request.form.get('maquina_id')
+    detalhes = request.form.get('detalhes')
+    novo_prazo_str = request.form.get('novo_prazo')
+
+    if not novo_prazo_str:
+        flash('Erro: Você deve selecionar uma nova data para prorrogar o prazo.', 'danger')
+        return redirect(url_for('listar_maquinas'))
+
+    # Converte a string de data vinda do HTML para um objeto date/datetime do Python
+    novo_prazo = datetime.strptime(novo_prazo_str, '%Y-%m-%d').date()
+
+    # 1. Localiza a Ordem de Serviço "Pendente" dessa máquina
+    ordem_aberta = OrdemServico.query.filter_by(maquina_id=maquina_id, status='Pendente').first()
+
+    if ordem_aberta:
+        # 2. Atualiza o prazo limite e adiciona o histórico no texto descritivo
+        ordem_aberta.prazo_previsto = novo_prazo
+
+        # Acrescenta uma nota na descrição ou logs da OS para não perder o histórico
+        nota_historico = f"\n[Prorrogado em {datetime.now().strftime('%d/%m/%Y')} por {current_user.username}]: {detalhes}"
+        if ordem_aberta.descricao_defeito:
+            ordem_aberta.descricao_defeito += nota_historico
+        else:
+            ordem_aberta.descricao_defeito = nota_historico
+
+        flash(f'Prazo da OS #{ordem_aberta.id} prorrogado com sucesso para {novo_prazo.strftime("%d/%m/%Y")}.',
+              'success')
+    else:
+        flash('Não foi encontrada nenhuma Ordem de Serviço aberta para adiar o prazo.', 'danger')
+
+    db.session.commit()
+    return redirect(url_for('listar_maquinas'))
+
+# -----------------------------------------------------------------------------
 # ROTA: CADASTRAR NOVO ITEM
 # -----------------------------------------------------------------------------
+
 @app.route('/item/novo', methods=['POST'])
 @login_required
 def novo_item():
@@ -436,10 +607,10 @@ def novo_item():
 
     return redirect(url_for('listar_itens'))
 
-
 # -----------------------------------------------------------------------------
 # ROTA: CONTROLE DE ESTOQUE
 # -----------------------------------------------------------------------------
+
 @app.route('/estoque/movimentar', methods=['POST'])
 @login_required
 def movimentar_estoque():
