@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestor de Manutenção Industrial</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         .imagem-proporcional {
             width: 25vw; /* Ocupa exatamente 25% da largura da tela */
@@ -19,26 +20,43 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid">
         <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
-            <svg class="me-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#38bdf8" stroke="#38bdf8" stroke-width="1.5"/>
-                <path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#0ea5e9" stroke-width="1.5"/>
-                <path d="M2 7v10l10 5V12L2 7z" fill="#0284c7" opacity="0.3"/>
-                <circle cx="12" cy="12" r="3" fill="#f97316" />
+            <svg class="me-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height=\"30\" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#38bdf8" stroke="#38bdf8" stroke-width="2"/>
             </svg>
-            <span class="fw-bold text-white tracking-wide">GESTOR DE PEÇAS</span>
+            <strong>GestorPecas</strong>
         </a>
-
-        <button class="navbar-expand-lg navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
+
         <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('dashboard') }}">Painel de Controle</a>
+                    <a class="nav-link" href="{{ url_for('dashboard') }}">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
                 </li>
+
                 <li class="nav-item">
-                    <a class="nav-link" href="/itens">Peças e Estoque</a>
+                    <a class="nav-link" href="{{ url_for('listar_itens') }}">
+                        <i class="bi bi-box-seam"></i> Estoque
+                    </a>
                 </li>
+
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('listar_ordens') }}">
+                        <i class="bi bi-file-earmark-wrench"></i> Ordens de Serviço
+                    </a>
+                </li>
+
+                {% if current_user.role in ['Administrador', 'Tecnico'] %}
+                <li class="nav-item">
+                    <a class="nav-link text-info fw-bold" href="/manutencao/calendario">
+                        <i class="bi bi-calendar3"></i> Calendário
+                    </a>
+                </li>
+                {% endif %}
+
                 {% if current_user.role in ['Administrador', 'Tecnico'] %}
                 <li class="nav-item">
                     <a class="nav-link" href="{{ url_for('listar_maquinas') }}">
@@ -67,9 +85,8 @@
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
                         {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss=\"alert\"></button>
                     </div>
-                </for>
                 {% endfor %}
             {% endif %}
         {% endwith %}

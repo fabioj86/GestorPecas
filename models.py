@@ -113,8 +113,9 @@ class OrdemServicoItemPrevisto(db.Model):
     item_sku = db.Column(db.String(50), db.ForeignKey('itens.sku'), nullable=False)
     quantidade_prevista = db.Column(db.Integer, nullable=False, default=1)
 
-    # 🟢 ADICIONE ESTA LINHA PARA CRIAR O RELACIONAMENTO QUE ESTÁ EM FALTA:
+    # Relacionamento que vincula o SKU cadastrado na O.S ao cadastro global do Item
     item = db.relationship('Item', primaryjoin="OrdemServicoItemPrevisto.item_sku==Item.sku", backref='os_links', lazy=True)
+
 
 # -----------------------------------------------------------------------------
 # MODELO: MOVIMENTAÇÃO DE ESTOQUE (LOGS OPERACIONAIS)
@@ -143,3 +144,23 @@ class AuditLog(db.Model):
     acao = db.Column(db.String(255), nullable=False)
     detalhes = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+# -----------------------------------------------------------------------------
+# MODELO: MANUTENÇÃO PROGRAMADA (PREVENTIVAS / AGENDAMENTOS)
+# -----------------------------------------------------------------------------
+class ManutencaoProgramada(db.Model):
+    __tablename__ = 'manutencoes_programadas'
+
+    id = db.Column(db.Integer, primary_key=True)
+    maquina_id = db.Column(db.Integer, db.ForeignKey('maquinas.id'), nullable=False)
+    descricao_atividades = db.Column(db.Text, nullable=False)
+    data_programada = db.Column(db.Date, nullable=False)
+    status = db.Column(db.String(20), default='Pendente')  # Pendente, Em Atraso, Concluida
+
+    # Guarda o ID da OS se o usuário optar por gerar uma automaticamente
+    os_gerada_id = db.Column(db.Integer, db.ForeignKey('ordens_servico.id'), nullable=True)
+
+    # Relacionamentos
+    maquina = db.relationship('Maquina', backref='programacoes', lazy=True)
+    os_gerada = db.relationship('OrdemServico', backref='origem_programacao', lazy=True)
