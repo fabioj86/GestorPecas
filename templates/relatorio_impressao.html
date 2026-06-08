@@ -1,0 +1,76 @@
+{% extends 'relatorio_impressao.html' %}
+
+{% block title %}Relatório de Estoque - GestorPecas{% endblock %}
+{% block relatorio_titulo %}Relatório de Estoque e Peças Inventariadas{% endblock %}
+
+{% block filtros_escopo %}
+    {% if termo_busca %}
+        Filtrado pelo termo: "{{ termo_busca }}"
+    {% else %}
+        Geral (Todos os itens do Almoxarifado)
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<style>
+    /* Estilo visual para destacar linhas com estoque crítico na impressão */
+    .minimo-critico {
+        background-color: #f8d7da !important;
+    }
+    
+    @media print {
+        .minimo-critico td {
+            background-color: #f8d7da !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .badge-critico {
+            border: 1px solid #dc3545 !important;
+            color: #dc3545 !important;
+            font-weight: bold;
+        }
+    }
+</style>
+
+<div class="table-responsive">
+    <table class="table table-bordered table-striped text-center align-middle">
+        <thead class="table-dark">
+            <tr>
+                <th style="width: 15%;">Código (SKU)</th>
+                <th class="text-start" style="width: 40%;">Descrição da Peça</th>
+                <th style="width: 15%;">Categoria</th>
+                <th style="width: 15%;">Localização</th>
+                <th style="width: 15%;">Qtd. Atual</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in itens %}
+            <tr class="{% if item.estoque_atual <= item.estoque_minimo %}minimo-critico{% endif %}">
+                <td><strong>{{ item.sku }}</strong></td>
+                <td class="text-start">{{ item.descricao }}</td>
+                <td>{{ item.categoria or 'N/A' }}</td>
+                <td>{{ item.localizacao or 'N/A' }}</td>
+                <td>
+                    {% if item.estoque_atual <= item.estoque_minimo %}
+                        <span class="badge bg-danger fs-6 badge-critico">{{ item.estoque_atual }}</span>
+                        <small class="d-block text-danger fw-bold small mt-1">(Crítico)</small>
+                    {% else %}
+                        <span class="badge bg-success fs-6">{{ item.estoque_atual }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="text-center py-4 text-muted">Nenhum item localizado no inventário atual.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="row mt-5 pt-5 text-center">
+    <div class="col-6 offset-3 border-top border-secondary pt-2">
+        <small class="d-block text-muted text-uppercase fw-bold">Assinatura do Encarregado do Almoxarifado</small>
+    </div>
+</div>
+{% endblock %}

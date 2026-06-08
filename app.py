@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, render_template_string
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -16,9 +16,9 @@ from config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # CONFIGURAÇÕES DE PASTAS DE UPLOAD
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 PASTA_UPLOAD_MAQUINAS = os.path.join('static', 'uploads', 'maquinas')
 app.config['UPLOAD_MAQUINAS'] = PASTA_UPLOAD_MAQUINAS
 os.makedirs(PASTA_UPLOAD_MAQUINAS, exist_ok=True)
@@ -27,8 +27,13 @@ PASTA_UPLOAD_OS = os.path.join('static', 'uploads', 'os')
 app.config['UPLOAD_OS'] = PASTA_UPLOAD_OS
 os.makedirs(PASTA_UPLOAD_OS, exist_ok=True)
 
+PASTA_UPLOAD_ITENS = os.path.join('static', 'uploads')
+app.config['UPLOAD_ITENS'] = PASTA_UPLOAD_ITENS
+os.makedirs(PASTA_UPLOAD_ITENS, exist_ok=True)
+
 # Inicialização do Banco de Dados e Login Manager
 db.init_app(app)
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -39,37 +44,22 @@ def load_user(user_id):
     return Usuario.query.get(int(user_id))
 
 
-# Criação das tabelas e do Usuário Padrão
-with app.app_context():
-    db.create_all()
-
-    if not Usuario.query.first():
-        senha_criptografada = generate_password_hash('admin123')
-        usuario_admin = Usuario(
-            username='admin',
-            email='admin@industria.com',
-            password_hash=senha_criptografada,
-            role='Administrador'
-        )
-        db.session.add(usuario_admin)
-        db.session.commit()
-        print("Usuário padrão 'admin' criado com sucesso!")
-
-
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # ROTAS DE AUTENTICAÇÃO
-# -----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
+@app.route('/', methods=['GET', 'POST'])
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
         user = Usuario.query.filter_by(username=username).first()
-
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
             return redirect(url_for('dashboard'))
-        flash('Utilizador ou senha incorretos.', 'danger')
+        flash('Usuário ou senha inválidos!', 'danger')
     return render_template('login.html')
 
 
@@ -80,104 +70,148 @@ def logout():
     return redirect(url_for('login'))
 
 
-# -----------------------------------------------------------------------------
-# ROTA: LISTAR USUÁRIOS
-# -----------------------------------------------------------------------------
-@app.route('/usuarios')
-@login_required
-def listar_usuarios():
-    if current_user.role != 'Administrador':
-        flash('Acesso negado: Área restrita para administradores.', 'danger')
-        return redirect(url_for('dashboard'))
-
-    usuarios = Usuario.query.order_by(Usuario.id).all()
-    return render_template('usuarios.html', usuarios=usuarios)
-
-
-# -----------------------------------------------------------------------------
-# ROTA: CADASTRAR NOVO USUÁRIO
-# -----------------------------------------------------------------------------
-@app.route('/usuario/novo', methods=['POST'])
-@login_required
-def novo_usuario():
-    if current_user.role != 'Administrador':
-        flash('Acesso negado!', 'danger')
-        return redirect(url_for('dashboard'))
-
-    username = request.form.get('username')
-    email = request.form.get('email')
-    senha = request.form.get('password')
-    role = request.form.get('role')
-
-    usuario_existente = Usuario.query.filter_by(username=username).first()
-    if usuario_existente:
-        flash('Erro: Este nome de usuário já está em uso no sistema.', 'danger')
-        return redirect(url_for('listar_usuarios'))
-
-    senha_criptografada = generate_password_hash(senha)
-
-    novo_user = Usuario(
-        username=username,
-        email=email,
-        password_hash=senha_criptografada,
-        role=role
-    )
-
-    db.session.add(novo_user)
-    db.session.commit()
-
-    flash(f'Usuário {username} cadastrado com sucesso!', 'success')
-    return redirect(url_for('listar_usuarios'))
-
-
-# -----------------------------------------------------------------------------
-# ROTA: DASHBOARD PRINCIPAL (PAINEL DE CONTROLE)
-# -----------------------------------------------------------------------------
-@app.route('/')
-@app.route('/paineldecontrole')
+# ----------------------------------------------------------------------------
+# PAINEL DE CONTROLE (DASHBOARD)
+# ----------------------------------------------------------------------------
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    total_itens = Item.query.count()
+    total_maquinas = Maquina.query.filter_by(status='Operando').count()
+    os_pendentes = OrdemServico.query.filter_by(status='Pendente').count()
+
     hoje = date.today()
-    limite_alerta = hoje + timedelta(days=2)
+    os_em_atraso = OrdemServico.query.filter(OrdemServico.status == 'Pendente',
+                                             OrdemServico.prazo_previsto < hoje).all()
 
-    total_pecas = Item.query.count()
-    maquinas_operando = Maquina.query.filter_by(status='Operando').count()
-
-    os_pendentes_list = OrdemServico.query.filter(OrdemServico.status != 'Concluída').all()
-    total_pendentes = len(os_pendentes_list)
-
-    os_atrasadas = [os for os in os_pendentes_list if os.prazo_previsto < hoje]
-    os_no_prazo_critico = [os for os in os_pendentes_list if hoje <= os.prazo_previsto <= limite_alerta]
-
-    itens_alerta_list = Item.query.filter(Item.estoque_atual <= Item.estoque_minimo).all()
+    prazo_critico = hoje + timedelta(days=3)
+    os_no_prazo_critico = OrdemServico.query.filter(
+        OrdemServico.status == 'Pendente',
+        OrdemServico.prazo_previsto >= hoje,
+        OrdemServico.prazo_previsto <= prazo_critico
+    ).all()
 
     return render_template('paineldecontrole.html',
-                           total_pecas=total_pecas,
-                           total_itens=total_pecas,
-                           pecas_cadastradas=total_pecas,
-                           maquinas_operando=maquinas_operando,
-                           total_maquinas=maquinas_operando,
-                           maquinas_ativas=maquinas_operando,
-                           total_pendentes=total_pendentes,
-                           total_os=total_pendentes,
-                           qtd_os=total_pendentes,
-                           os_pendentes=total_pendentes,
-                           alertas=itens_alerta_list,
-                           itens_alerta=itens_alerta_list,
-                           alertas_estoque=itens_alerta_list,
-                           itens_estoque_minimo=itens_alerta_list,
-                           produtos_alerta=itens_alerta_list,
-                           os_atrasadas=os_atrasadas,
+                           total_itens=total_itens,
+                           total_maquinas=total_maquinas,
+                           os_pendentes=os_pendentes,
+                           os_em_atraso=os_em_atraso,
                            os_no_prazo_critico=os_no_prazo_critico)
 
 
-# -----------------------------------------------------------------------------
-# ROTA: PESQUISA E CONSULTA DE ITENS
-# -----------------------------------------------------------------------------
-@app.route('/itens', methods=['GET'])
+# ----------------------------------------------------------------------------
+# GESTÃO DE ESTOQUE e ALMOXARIFADO
+# ----------------------------------------------------------------------------
+@app.route('/itens')
 @login_required
 def listar_itens():
+    termo_busca = request.args.get('search', '')
+    query = Item.query
+    if termo_busca:
+        query = query.filter(
+            (Item.sku.ilike(f"%{termo_busca}%")) |
+            (Item.descricao.ilike(f"%{termo_busca}%")) |
+            (Item.categoria.ilike(f"%{termo_busca}%")) |
+            (Item.localizacao.ilike(f"%{termo_busca}%"))
+        )
+    itens = query.all()
+    return render_template('itens.html', itens=itens, termo_busca=termo_busca)
+
+
+@app.route('/item/novo', methods=['POST'])
+@login_required
+def item_novo():
+    sku = request.form.get('sku')
+    categoria = request.form.get('categoria')
+    descricao = request.form.get('descricao')
+    fornecedor = request.form.get('fornecedor')
+    preco_unitario = request.form.get('preco_unitario', '0')
+    localizacao = request.form.get('localizacao')
+    estoque_minimo = request.form.get('estoque_minimo', 0)
+    estoque_maximo = request.form.get('estoque_maximo', 0)
+
+    try:
+        preco_unitario = float(preco_unitario.replace(',', '.'))
+    except ValueError:
+        preco_unitario = 0.0
+
+    novo_item = Item(
+        sku=sku, categoria=categoria, descricao=descricao,
+        fornecedor=fornecedor, preco_unitario=preco_unitario,
+        localizacao=localizacao, estoque_minimo=int(estoque_minimo or 0),
+        estoque_maximo=int(estoque_maximo or 0), estoque_atual=0
+    )
+    db.session.add(novo_item)
+    db.session.commit()
+
+    imagens = request.files.getlist('imagens')
+    for img in imagens:
+        if img and img.filename:
+            nome_seguro = secure_filename(f"{novo_item.id}_{img.filename}")
+            img.save(os.path.join(app.config['UPLOAD_ITENS'], nome_seguro))
+            nova_img = ItemImagem(item_id=novo_item.id, caminho_arquivo=nome_seguro)
+            db.session.add(nova_img)
+
+    db.session.commit()
+    flash('Peça cadastrada com sucesso!', 'success')
+    return redirect(url_for('listar_itens'))
+
+
+@app.route('/api/item/<int:item_id>')
+@login_required
+def api_item(item_id):
+    item = Item.query.get_or_404(item_id)
+    imagens = [img.caminho_arquivo for img in item.imagens]
+    return jsonify({
+        'sku': item.sku,
+        'descricao': item.descricao,
+        'categoria': item.categoria,
+        'localizacao': item.localizacao,
+        'preco': item.preco_unitario or 0.0,
+        'estoque_atual': item.estoque_atual,
+        'estoque_minimo': item.estoque_minimo,
+        'estoque_maximo': item.estoque_maximo,
+        'imagens': imagens
+    })
+
+
+@app.route('/estoque/movimentar', methods=['POST'])
+@login_required
+def estoque_movimentar():
+    item_id = request.form.get('item_id')
+    tipo = request.form.get('tipo')
+    quantidade = int(request.form.get('quantidade', 0))
+    nota_fiscal = request.form.get('nota_fiscal')
+    os_id = request.form.get('os_id')
+
+    item = Item.query.get_or_404(item_id)
+    if tipo == 'Entrada':
+        item.estoque_atual += quantidade
+    elif tipo == 'Baixa':
+        if item.estoque_atual < quantidade:
+            flash('Quantidade insuficiente em estoque para realizar a baixa!', 'danger')
+            return redirect(url_for('listar_itens'))
+        item.estoque_atual -= quantidade
+
+    mov = MovimentacaoEstoque(
+        item_id=item_id,
+        usuario_id=current_user.id,
+        tipo=tipo,
+        quantidade=quantidade,
+        nota_fiscal=nota_fiscal,
+        ordem_servico_id=int(os_id) if os_id else None,
+        data_movimentacao=datetime.utcnow()
+    )
+    db.session.add(mov)
+    db.session.commit()
+    flash(f'Movimentação de {tipo} registrada com sucesso!', 'success')
+    return redirect(url_for('listar_itens'))
+
+
+@app.route('/itens/relatorio')
+@login_required
+def imprimir_relatorio_itens():
+    # Captura o termo de busca caso o estoque esteja filtrado na tela
     termo_busca = request.args.get('search', '')
 
     query = Item.query
@@ -188,253 +222,93 @@ def listar_itens():
             (Item.categoria.ilike(f'%{termo_busca}%')) |
             (Item.localizacao.ilike(f'%{termo_busca}%'))
         )
-    itens = query.all()
-    return render_template('itens.html', itens=itens, termo_busca=termo_busca)
 
+    itens = query.order_by(Item.descricao).all()
+    data_emissao = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-# -----------------------------------------------------------------------------
-# ROTA: CONTROLE OPERACIONAL DE ORDENS DE SERVIÇO
-# -----------------------------------------------------------------------------
-@app.route('/ordens')
-@login_required
-def listar_ordens():
-    ordens = OrdemServico.query.order_by(OrdemServico.data_abertura.desc()).all()
-    todas_maquinas = Maquina.query.all()
-    pecas_disponiveis = Item.query.all()
-    return render_template('ordens.html', ordens=ordens, maquinas=todas_maquinas, pecas=pecas_disponiveis)
+    return render_template('relatorio_itens.html', itens=itens, data_emissao=data_emissao, termo_busca=termo_busca)
 
-
-@app.route('/ordem/nova', methods=['POST'])
-@login_required
-def nova_os():
-    maquina_id = request.form.get('maquina_id')
-    descricao_defeito = request.form.get('descricao_defeito')
-    prazo_previsto_str = request.form.get('prazo_previsto')
-
-    prazo_previsto = datetime.strptime(prazo_previsto_str, '%Y-%m-%d').date()
-
-    nova_os = OrdemServico(maquina_id=maquina_id, descricao_defeito=descricao_defeito, prazo_previsto=prazo_previsto)
-    db.session.add(nova_os)
-    db.session.flush()
-
-    skus_selecionados = request.form.getlist('pecas_sku[]')
-    quantidades = request.form.getlist('pecas_qtd[]')
-
-    for sku, qtd in zip(skus_selecionados, quantidades):
-        if sku and qtd:
-            previsao = OrdemServicoItemPrevisto(os_id=nova_os.id, item_sku=sku, quantidade_prevista=int(qtd))
-            db.session.add(previsao)
-
-    if 'imagens' in request.files:
-        arquivos = request.files.getlist('imagens')
-        for arquivo in arquivos:
-            if arquivo and arquivo.filename != '':
-                nome_seguro = secure_filename(f"os_{nova_os.id}_{arquivo.filename}")
-                arquivo.save(os.path.join(app.config['UPLOAD_OS'], nome_seguro))
-
-                nova_foto = OrdemServicoImagem(os_id=nova_os.id, caminho_arquivo=f"uploads/os/{nome_seguro}")
-                db.session.add(nova_foto)
-
-    maquina = Maquina.query.get(maquina_id)
-    if maquina:
-        maquina.status = 'Defeito'
-
-    db.session.commit()
-    flash(f'O.S. Nº {nova_os.id} aberta e máquina alterada para status Em Defeito!', 'success')
-    return redirect(url_for('listar_ordens'))
-
-
-@app.route('/api/item/<int:item_id>', methods=['GET'])
-@login_required
-def obter_detalhes_item(item_id):
-    item = Item.query.get_or_404(item_id)
-    imagens = [img.caminho_imagem for img in item.imagens]
-
-    return jsonify({
-        'sku': item.sku,
-        'descricao': item.descricao,
-        'categoria': item.categoria,
-        'localizacao': item.localizacao,
-        'estoque_atual': item.estoque_atual,
-        'estoque_minimo': item.estoque_minimo,
-        'estoque_maximo': item.estoque_maximo,
-        'preco': float(item.preco_unitario),
-        'imagens': imagens
-    })
-
-
-@app.route('/api/maquina/<int:maquina_id>', methods=['GET'])
-@login_required
-def obter_detalhes_maquina(maquina_id):
-    maquina = Maquina.query.get_or_404(maquina_id)
-    imagens = [img.caminho_arquivo for img in maquina.imagens]
-
-    ordens = maquina.ordens_servico
-    tempo_parada_str = "0 horas (Equipamento Operando)"
-    previsao_manutencao = "Nenhuma manutenção pendente"
-    ordens_data = []
-
-    ordens_ativas = [os for os in ordens if os.status in ['Pendente', 'Em Andamento']]
-
-    if maquina.status != 'Operando' and ordens_ativas:
-        os_inicial = min(ordens_ativas, key=lambda x: x.data_abertura)
-        diferenca = datetime.utcnow() - os_inicial.data_abertura
-        horas = int(diferenca.total_seconds() // 3600)
-        minutos = int((diferenca.total_seconds() % 3600) // 60)
-        tempo_parada_str = f"{horas}h {minutos}min"
-
-    if ordens_ativas:
-        os_proxima = min(ordens_ativas, key=lambda x: x.prazo_previsto)
-        previsao_manutencao = os_proxima.prazo_previsto.strftime('%d/%m/%Y')
-
-    ordens_ordenadas = sorted(ordens, key=lambda x: x.data_abertura, reverse=True)
-    for os in ordens_ordenadas:
-        ordens_data.append({
-            'id': os.id,
-            'descricao_defeito': os.descricao_defeito,
-            'data_abertura': os.data_abertura.strftime('%d/%m/%Y %H:%M'),
-            'prazo_previsto': os.prazo_previsto.strftime('%d/%m/%Y'),
-            'status': os.status
-        })
-
-    return jsonify({
-        'id': maquina.id,
-        'codigo': maquina.codigo,
-        'descricao': maquina.descricao,
-        'linha': maquina.linha,
-        'status': maquina.status,
-        'imagens': imagens,
-        'tempo_parada': tempo_parada_str,
-        'previsao_manutencao': previsao_manutencao,
-        'programacao_os': ordens_data[:5]
-    })
-
-
+# ----------------------------------------------------------------------------
+# GESTÃO DE EQUIPAMENTOS (MÁQUINAS)
+# ----------------------------------------------------------------------------
 @app.route('/maquinas')
 @login_required
 def listar_maquinas():
-    if current_user.role not in ['Administrador', 'Tecnico']:
-        flash('Acesso restrito à equipe técnica.', 'danger')
-        return redirect(url_for('dashboard'))
-
-    q_codigo = request.args.get('codigo', '')
-    q_descricao = request.args.get('descricao', '')
-    q_linha = request.args.get('linha', '')
+    codigo = request.args.get('codigo', '')
+    descricao = request.args.get('descricao', '')
+    linha = request.args.get('linha', '')
 
     query = Maquina.query
-    if q_codigo:
-        query = query.filter(Maquina.codigo.ilike(f'%{q_codigo}%'))
-    if q_descricao:
-        query = query.filter(Maquina.descricao.ilike(f'%{q_descricao}%'))
-    if q_linha:
-        query = query.filter(Maquina.linha.ilike(f'%{q_linha}%'))
+    if codigo:
+        query = query.filter(Maquina.codigo.ilike(f"%{codigo}%"))
+    if descricao:
+        query = query.filter(Maquina.descricao.ilike(f"%{descricao}%"))
+    if linha:
+        query = query.filter(Maquina.linha.ilike(f"%{linha}%"))
 
-    maquinas = query.order_by(Maquina.codigo).all()
-    pecas_disponiveis = Item.query.all()
-    todas_maquinas_cadastradas = Maquina.query.order_by(Maquina.codigo).all()
-
-    return render_template(
-        'maquinas.html',
-        maquinas=maquinas,
-        pecas=pecas_disponiveis,
-        todas_maquinas=todas_maquinas_cadastradas
-    )
+    maquinas = query.all()
+    todas_maquinas = Maquina.query.all()
+    pecas = Item.query.all()
+    return render_template('maquinas.html', maquinas=maquinas, todas_maquinas=todas_maquinas, pecas=pecas)
 
 
 @app.route('/maquina/nova', methods=['POST'])
 @login_required
-def nova_maquina():
-    if current_user.role not in ['Administrador', 'Tecnico']:
-        return "Acesso Negado", 403
-
+def maquina_nova():
     codigo = request.form.get('codigo')
     descricao = request.form.get('descricao')
     linha = request.form.get('linha')
     status = request.form.get('status', 'Operando')
 
-    if Maquina.query.filter_by(codigo=codigo).first():
-        flash(f'Erro: O código {codigo} já está cadastrado!', 'danger')
-        return redirect(url_for('listar_maquinas'))
+    nova_mq = Maquina(codigo=codigo, descricao=descricao, linha=linha, status=status)
+    db.session.add(nova_mq)
+    db.session.commit()
 
-    nova = Maquina(codigo=codigo, descricao=descricao, Self=linha, status=status)
-    db.session.add(nova)
-    db.session.flush()
-
-    if 'imagens' in request.files:
-        arquivos = request.files.getlist('imagens')
-        for arquivo in arquivos:
-            if arquivo and arquivo.filename != '':
-                nome_seguro = secure_filename(f"{nova.id}_{arquivo.filename}")
-                arquivo.save(os.path.join(app.config['UPLOAD_MAQUINAS'], nome_seguro))
-
-                nova_foto = MaquinaImagem(maquina_id=nova.id, caminho_arquivo=f"uploads/maquinas/{nome_seguro}")
-                db.session.add(nova_foto)
+    imagens = request.files.getlist('imagens')
+    for img in imagens:
+        if img and img.filename:
+            nome_seguro = secure_filename(f"{nova_mq.id}_{img.filename}")
+            img.save(os.path.join(app.config['UPLOAD_MAQUINAS'], nome_seguro))
+            nova_img = MaquinaImagem(maquina_id=nova_mq.id, caminho_arquivo=f"uploads/maquinas/{nome_seguro}")
+            db.session.add(nova_img)
 
     db.session.commit()
-    flash(f'Máquina {codigo} cadastrada com sucesso!', 'success')
+    flash('Máquina cadastrada com sucesso!', 'success')
     return redirect(url_for('listar_maquinas'))
 
 
-@app.route('/maquina/editar/<int:maquina_id>', methods=['POST'])
+@app.route('/maquina/editar/<int:id>', methods=['POST'])
 @login_required
-def editar_maquina(maquina_id):
+def maquina_editar(id):
     if current_user.role != 'Administrador':
-        flash('Acesso negado: Apenas administradores podem editar o cadastro de equipamentos.', 'danger')
+        flash('Acesso negado!', 'danger')
         return redirect(url_for('listar_maquinas'))
-
-    maquina = Maquina.query.get_or_404(maquina_id)
-
-    codigo = request.form.get('codigo')
-    descricao = request.form.get('descricao')
-    linha = request.form.get('linha')
-    status = request.form.get('status')
-
-    maquina_existente = Maquina.query.filter(Maquina.codigo == codigo, Maquina.id != maquina_id).first()
-    if maquina_existente:
-        flash(f'Erro: O código "{codigo}" já está em uso por outra máquina cadastrada!', 'danger')
-        return redirect(url_for('listar_maquinas'))
-
-    maquina.codigo = codigo
-    maquina.descricao = descricao
-    maquina.linha = linha
-    maquina.status = status
-
+    mq = Maquina.query.get_or_404(id)
+    mq.codigo = request.form.get('codigo')
+    mq.descricao = request.form.get('descricao')
+    mq.linha = request.form.get('linha')
+    mq.status = request.form.get('status')
     db.session.commit()
-    flash(f'Equipamento {codigo} modificado com sucesso!', 'success')
+    flash('Máquina atualizada com sucesso!', 'success')
     return redirect(url_for('listar_maquinas'))
 
 
-@app.route('/maquina/excluir/<int:maquina_id>', methods=['POST'])
+@app.route('/maquina/excluir/<int:id>', methods=['POST'])
 @login_required
-def excluir_maquina(maquina_id):
+def maquina_excluir(id):
     if current_user.role != 'Administrador':
-        flash('Acesso negado: Apenas administradores podem remover equipamentos.', 'danger')
+        flash('Acesso negado!', 'danger')
         return redirect(url_for('listar_maquinas'))
-
-    maquina = Maquina.query.get_or_404(maquina_id)
-
-    if maquina.ordens_servico:
-        flash(f'Não é possível excluir a máquina "{maquina.codigo}" porque ela possui Ordens de Serviço vinculadas ao seu histórico.', 'danger')
-        return redirect(url_for('listar_maquinas'))
-
-    try:
-        for img in maquina.imagens:
-            caminho_completo = os.path.join('static', img.caminho_arquivo)
-            if os.path.exists(caminho_completo):
-                try:
-                    os.remove(caminho_completo)
-                except Exception as err:
-                    print(f"Aviso: Não foi possível deletar o arquivo físico {caminho_completo}. Erro: {err}")
-            db.session.delete(img)
-
-        codigo_removido = maquina.codigo
-        db.session.delete(maquina)
-        db.session.commit()
-        flash(f'Máquina {codigo_removido} e suas dependências foram removidas com sucesso!', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Erro interno ao tentar processar a exclusão: {str(e)}', 'danger')
-
+    mq = Maquina.query.get_or_404(id)
+    for img in mq.imagens:
+        try:
+            os.remove(os.path.join('static', img.caminho_arquivo))
+        except:
+            pass
+        db.session.delete(img)
+    db.session.delete(mq)
+    db.session.commit()
+    flash('Equipamento excluído com sucesso!', 'success')
     return redirect(url_for('listar_maquinas'))
 
 
@@ -447,191 +321,169 @@ def finalizar_manutencao():
     maquina = Maquina.query.get_or_404(maquina_id)
     maquina.status = 'Operando'
 
-    ordem_aberta = OrdemServico.query.filter_by(maquina_id=maquina.id, status='Pendente').first()
+    os_aberta = OrdemServico.query.filter_by(maquina_id=maquina_id, status='Pendente').first()
+    if os_aberta:
+        os_aberta.status = 'Concluída'
+        os_aberta.data_conclusao = datetime.utcnow()
 
-    if ordem_aberta:
-        ordem_aberta.status = 'Finalizada'
-        ordem_aberta.diagnostico_tecnico = detalhes
-        ordem_aberta.data_fechamento = datetime.utcnow()
-        flash(f'Manutenção finalizada! OS #{ordem_aberta.id} baixada e máquina liberada.', 'success')
-    else:
-        flash('Máquina atualizada para Operando, mas nenhuma O.S. pendente foi encontrada.', 'warning')
-
-    try:
-        log = AuditLog(
-            usuario_id=current_user.id,
-            acao=f"Finalizou manutenção da máquina ID {maquina.id}. Relato: {detalhes}"
-        )
-        db.session.add(log)
-    except Exception:
-        pass
-
+    log = AuditLog(usuario_id=current_user.id, acao="Finalizar Manutenção",
+                   detalhes=f"Máquina {maquina.codigo}: {detalhes}")
+    db.session.add(log)
     db.session.commit()
+    flash('Manutenção finalizada com sucesso!', 'success')
     return redirect(url_for('listar_maquinas'))
 
 
 @app.route('/maquinas/prorrogagar-manutencao', methods=['POST'])
 @login_required
-def prorrogar_manutencao():
+def prorrogagar_manutencao():
     maquina_id = request.form.get('maquina_id')
     detalhes = request.form.get('detalhes')
     novo_prazo_str = request.form.get('novo_prazo')
 
-    if not novo_prazo_str:
-        flash('Erro: Você deve selecionar uma nova data para prorrogar o prazo.', 'danger')
-        return redirect(url_for('listar_maquinas'))
+    os_aberta = OrdemServico.query.filter_by(maquina_id=maquina_id, status='Pendente').first()
+    if os_aberta and novo_prazo_str:
+        os_aberta.prazo_previsto = datetime.strptime(novo_prazo_str, '%Y-%m-%d').date()
 
-    novo_prazo = datetime.strptime(novo_prazo_str, '%Y-%m-%d').date()
-    ordem_aberta = OrdemServico.query.filter_by(maquina_id=maquina_id, status='Pendente').first()
-
-    if ordem_aberta:
-        ordem_aberta.prazo_previsto = novo_prazo
-        nota_historico = f"\n[Prorrogado em {datetime.now().strftime('%d/%m/%Y')} por {current_user.username}]: {detalhes}"
-        if ordem_aberta.descricao_defeito:
-            ordem_aberta.descricao_defeito += nota_historico
-        else:
-            ordem_aberta.descricao_defeito = nota_historico
-
-        flash(f'Prazo da OS #{ordem_aberta.id} prorrogado com sucesso para {novo_prazo.strftime("%d/%m/%Y")}.', 'success')
-    else:
-        flash('Não foi encontrada nenhuma Ordem de Serviço aberta para adiar o prazo.', 'danger')
-
+    log = AuditLog(usuario_id=current_user.id, acao="Prorrogar Manutenção",
+                   detalhes=f"Máquina ID {maquina_id}: {detalhes}. Novo prazo: {novo_prazo_str}")
+    db.session.add(log)
     db.session.commit()
+    flash('Prazo de manutenção prorrogado com sucesso!', 'success')
     return redirect(url_for('listar_maquinas'))
 
 
-@app.route('/item/novo', methods=['POST'])
+# ----------------------------------------------------------------------------
+# ORDENS DE SERVIÇO
+# ----------------------------------------------------------------------------
+@app.route('/ordens')
 @login_required
-def novo_item():
-    sku = request.form.get('sku')
-    descricao = request.form.get('descricao')
-    categoria = request.form.get('categoria')
-    localizacao = request.form.get('localizacao')
-    fornecedor = request.form.get('fornecedor')
-    preco = request.form.get('preco_unitario')
+def listar_ordens():
+    ordens = OrdemServico.query.all()
+    maquinas = Maquina.query.all()
+    pecas = Item.query.all()
+    return render_template('ordens.html', ordens=ordens, maquinas=maquinas, pecas=pecas)
 
-    preco_unitario = preco.replace(',', '.') if preco else 0.0
-    estoque_minimo = request.form.get('estoque_minimo', 0)
-    estoque_maximo = request.form.get('estoque_maximo', 0)
 
-    novo = Item(
-        sku=sku,
-        descricao=descricao,
-        categoria=categoria,
-        localizacao=localizacao,
-        fornecedor=fornecedor,
-        preco_unitario=preco_unitario,
-        estoque_minimo=int(estoque_minimo),
-        estoque_maximo=int(estoque_maximo)
+@app.route('/ordem/nova', methods=['POST'])
+@login_required
+def ordem_nova():
+    maquina_id = request.form.get('maquina_id')
+    prazo_str = request.form.get('prazo_previsto')
+    descricao_defeito = request.form.get('descricao_defeito')
+
+    prazo_previsto = datetime.strptime(prazo_str, '%Y-%m-%d').date()
+
+    nova_os = OrdemServico(
+        maquina_id=maquina_id,
+        descricao_defeito=descricao_defeito,
+        prazo_previsto=prazo_previsto,
+        status='Pendente',
+        data_abertura=datetime.utcnow()
     )
-    db.session.add(novo)
+    db.session.add(nova_os)
+    db.session.flush()
+
+    maquina = Maquina.query.get(maquina_id)
+    if maquina:
+        maquina.status = 'Defeito'
+
+    pecas_sku = request.form.getlist('pecas_sku[]')
+    pecas_qtd = request.form.getlist('pecas_qtd[]')
+
+    for sku, qtd in zip(pecas_sku, pecas_qtd):
+        if sku and qtd:
+            item = Item.query.filter_by(sku=sku).first()
+            if item:
+                previsto = OrdemServicoItemPrevisto(
+                    ordem_servico_id=nova_os.id,
+                    item_id=item.id,
+                    quantidade_prevista=int(qtd)
+                )
+                db.session.add(previsto)
+
+    imagens = request.files.getlist('imagens')
+    for img in imagens:
+        if img and img.filename:
+            nome_seguro = secure_filename(f"os_{nova_os.id}_{img.filename}")
+            img.save(os.path.join(app.config['UPLOAD_OS'], nome_seguro))
+            nova_img = OrdemServicoImagem(ordem_servico_id=nova_os.id, caminho_arquivo=f"uploads/os/{nome_seguro}")
+            db.session.add(nova_img)
+
     db.session.commit()
+    flash('Ordem de Serviço aberta com sucesso!', 'success')
+    return redirect(request.referrer or url_for('listar_ordens'))
 
-    return redirect(url_for('listar_itens'))
 
-
-@app.route('/estoque/movimentar', methods=['POST'])
+# ----------------------------------------------------------------------------
+# GESTÃO DE USUÁRIOS
+# ----------------------------------------------------------------------------
+@app.route('/usuarios')
 @login_required
-def movimentar_estoque():
-    item_id = request.form.get('item_id')
-    tipo = request.form.get('tipo')
-    quantidade = int(request.form.get('quantidade'))
-    nota_fiscal = request.form.get('nota_fiscal')
-    os_id = request.form.get('os_id')
-
-    if os_id == "":
-        os_id = None
-
-    item = Item.query.get_or_404(item_id)
-
-    if tipo == 'Entrada':
-        item.estoque_atual += quantidade
-    elif tipo == 'Baixa':
-        if quantidade > item.estoque_atual:
-            flash('Erro: Quantidade de baixa maior que o estoque atual!', 'danger')
-            return redirect(url_for('listar_itens'))
-        item.estoque_atual -= quantidade
-
-    nova_movimentacao = MovimentacaoEstoque(
-        item_id=item.id,
-        usuario_id=current_user.id,
-        tipo=tipo,
-        quantidade=quantidade,
-        nota_fiscal=nota_fiscal,
-        os_id=os_id
-    )
-
-    db.session.add(nova_movimentacao)
-    db.session.commit()
-
-    flash(f'{tipo} de {quantidade} unidades realizada com sucesso!', 'success')
-    return redirect(url_for('listar_itens'))
-
-
-# -----------------------------------------------------------------------------
-# ROTAS: PROGRAMAÇÃO E CALENDÁRIO DE MANUTENÇÃO (ADM e TECNICO)
-# -----------------------------------------------------------------------------
-@app.route('/manutencao/calendario', methods=['GET'])
-@login_required
-def calendario_manutencao():
-    if current_user.role not in ['Administrador', 'Tecnico']:
-        flash('Acesso negado: Área restrita à equipe técnica.', 'danger')
+def listar_usuarios():
+    if current_user.role != 'Administrador':
+        flash('Acesso negado!', 'danger')
         return redirect(url_for('dashboard'))
+    usuarios = Usuario.query.all()
+    return render_template('usuarios.html', usuarios=usuarios)
 
-    hoje = date.today()
-    atrasadas = ManutencaoProgramada.query.filter(
-        ManutencaoProgramada.data_programada < hoje,
-        ManutencaoProgramada.status == 'Pendente'
-    ).all()
-    if atrasadas:
-        for manutencao in atrasadas:
-            manutencao.status = 'Em Atraso'
-        db.session.commit()
 
-    maquinas = Maquina.query.order_by(Maquina.codigo).all()
+@app.route('/usuario/novo', methods=['POST'])
+@login_required
+def usuario_novo():
+    if current_user.role != 'Administrador':
+        flash('Acesso negado!', 'danger')
+        return redirect(url_for('dashboard'))
+    username = request.form.get('username')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    role = request.form.get('role')
+
+    hash_senha = generate_password_hash(password)
+    novo_usuario = Usuario(username=username, email=email, password_hash=hash_senha, role=role)
+    db.session.add(novo_usuario)
+    db.session.commit()
+    flash('Usuário criado com sucesso!', 'success')
+    return redirect(url_for('listar_usuarios'))
+
+
+# ----------------------------------------------------------------------------
+# CALENDÁRIO / CRONOGRAMA DE MANUTENÇÃO
+# ----------------------------------------------------------------------------
+@app.route('/manutencao/calendario')
+@login_required
+def calendario():
+    maquinas = Maquina.query.all()
     return render_template('calendario.html', maquinas=maquinas)
 
 
-@app.route('/api/manutencoes/eventos', methods=['GET'])
+@app.route('/api/manutencoes/eventos')
 @login_required
-def api_eventos_calendario():
-    if current_user.role not in ['Administrador', 'Tecnico']:
-        return jsonify({'erro': 'Não autorizado'}), 403
-
+def api_eventos():
     status_filtro = request.args.get('status', '')
     query = ManutencaoProgramada.query
-
-    if status_filtro and status_filtro != '':
+    if status_filtro:
         query = query.filter_by(status=status_filtro)
+    programacoes = query.all()
 
-    manutencoes = query.all()
     eventos = []
-
-    for m in manutencoes:
-        cor = '#ffc107'  # Amarelo
-        if m.status == 'Em Atraso':
-            cor = '#dc3545'  # Vermelho
-        elif m.status == 'Concluida':
-            cor = '#28a745'  # Verde
-
+    for p in programacoes:
         eventos.append({
-            'id': m.id,
-            'title': f"[{m.maquina.codigo}] - Manutenção",
-            'start': m.data_programada.isoformat(),
-            'backgroundColor': cor,
-            'borderColor': cor,
+            'id': p.id,
+            'title': f"[{p.status}] {p.maquina.codigo}",
+            'start': p.data_programada.isoformat(),
             'extendedProps': {
-                'maquina': m.maquina.descricao,
-                'linha': m.maquina.linha,
-                'descricao': m.descricao_atividades,
-                'status': m.status,
-                'os_id': m.os_gerada_id or 'Nenhuma'
+                'maquina': p.maquina.descricao,
+                'linha': p.maquina.linha or 'N/A',
+                'descricao': p.descricao_atividades,
+                'status': p.status,
+                'os_id': p.os_gerada_id or 'Não gerada'
             }
         })
     return jsonify(eventos)
 
 
-@app.route('/manutencao/programar', methods=['POST'])
+@app.route('/manutencoes/programar', methods=['POST'])
 @login_required
 def programar_manutencao():
     if current_user.role not in ['Administrador', 'Tecnico']:
@@ -659,22 +511,259 @@ def programar_manutencao():
             maquina_id=maquina_id,
             descricao_defeito=f"[PREVENTIVA PROGRAMADA] {descricao}",
             prazo_previsto=data_programada,
-            status='Pendente'
+            status='Pendente',
+            data_abertura=datetime.utcnow()
         )
         db.session.add(nova_os)
         db.session.flush()
+        nova_programacao.os_gerada_id = nova_os.id
 
         maquina = Maquina.query.get(maquina_id)
         if maquina:
-            maquina.status = 'Manutencao'
-
-        nova_programacao.os_gerada_id = nova_os.id
-        flash(f'Agendamento realizado e O.S. Nº {nova_os.id} gerada automaticamente!', 'success')
-    else:
-        flash('Manutenção programada com sucesso!', 'success')
+            maquina.status = 'Defeito'
 
     db.session.commit()
-    return redirect(url_for('calendario_manutencao'))
+    flash('Manutenção programada com sucesso!', 'success')
+    return redirect(url_for('calendario'))
+
+
+# ----------------------------------------------------------------------------
+# BACKEND: NOVAS ROTAS DEDICADAS PARA IMPRESSÃO DE RELATÓRIOS ISOLADOS
+# ----------------------------------------------------------------------------
+@app.route('/relatorio/itens')
+@login_required
+def relatorio_itens():
+    search = request.args.get('search', '')
+    query = Item.query
+    if search:
+        query = query.filter(
+            (Item.sku.ilike(f"%{search}%")) |
+            (Item.descricao.ilike(f"%{search}%")) |
+            (Item.categoria.ilike(f"%{search}%")) |
+            (Item.localizacao.ilike(f"%{search}%"))
+        )
+    itens = query.all()
+
+    html_template = """
+    <!DOCTYPE html>
+    <html lang="pt">
+    <head>
+        <meta charset="UTF-8">
+        <title>Relatório de Estoque - GestorPecas</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body { padding: 30px; font-family: sans-serif; background-color: #fff; }
+            .report-header { border-bottom: 2px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
+            @media print { .no-print { display: none; } }
+        </style>
+    </head>
+    <body>
+        <div class="d-flex justify-content-between align-items-center report-header">
+            <div>
+                <h2>GestorPecas - Relatório de Estoque Atual</h2>
+                <p class="text-muted mb-0">Filtro aplicado: {% if search %}"{{ search }}"{% else %}Nenhum (Todos os itens){% endif %}</p>
+            </div>
+            <div class="text-end">
+                <button onclick="window.print()" class="btn btn-primary btn-sm no-print">Imprimir / Salvar PDF</button>
+                <p class="small text-muted mt-1 mb-0">Gerado em: {{ data_hora }}</p>
+            </div>
+        </div>
+        <table class="table table-bordered table-striped">
+            <thead class="table-dark">
+                <tr>
+                    <th>Código (SKU)</th>
+                    <th>Descrição</th>
+                    <th>Categoria</th>
+                    <th>Localização</th>
+                    <th>Estoque Mínimo</th>
+                    <th>Estoque Atual</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in itens %}
+                <tr>
+                    <td><strong>{{ item.sku }}</strong></td>
+                    <td>{{ item.descricao }}</td>
+                    <td>{{ item.categoria or 'N/A' }}</td>
+                    <td>{{ item.localizacao or 'N/A' }}</td>
+                    <td>{{ item.estoque_minimo }}</td>
+                    <td>
+                        {% if item.estoque_atual <= item.estoque_minimo %}
+                            <span class="text-danger fw-bold">{{ item.estoque_atual }} (Crítico)</span>
+                        {% else %}
+                            <span class="text-success fw-bold">{{ item.estoque_atual }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">Nenhum item localizado com o filtro aplicado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <script>window.onload = function() { window.print(); }</script>
+    </body>
+    </html>
+    """
+    return render_template_string(html_template, itens=itens, search=search,
+                                  data_hora=datetime.now().strftime('%d/%m/%Y às %H:%M:%S'))
+
+
+@app.route('/relatorio/maquinas')
+@login_required
+def relatorio_maquinas():
+    codigo = request.args.get('codigo', '')
+    descricao = request.args.get('descricao', '')
+    linha = request.args.get('linha', '')
+
+    query = Maquina.query
+    if codigo:
+        query = query.filter(Maquina.codigo.ilike(f"%{codigo}%"))
+    if descricao:
+        query = query.filter(Maquina.descricao.ilike(f"%{descricao}%"))
+    if linha:
+        query = query.filter(Maquina.linha.ilike(f"%{linha}%"))
+
+    maquinas = query.all()
+
+    html_template = """
+    <!DOCTYPE html>
+    <html lang="pt">
+    <head>
+        <meta charset="UTF-8">
+        <title>Relatório do Parque de Máquinas - GestorPecas</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body { padding: 30px; font-family: sans-serif; background-color: #fff; }
+            .report-header { border-bottom: 2px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
+            @media print { .no-print { display: none; } }
+        </style>
+    </head>
+    <body>
+        <div class="d-flex justify-content-between align-items-center report-header">
+            <div>
+                <h2>GestorPecas - Status do Parque de Máquinas</h2>
+                <p class="text-muted mb-0">Filtros ativos — Código: "{{ codigo }}", Descrição: "{{ descricao }}", Linha: "{{ linha }}"</p>
+            </div>
+            <div class="text-end">
+                <button onclick="window.print()" class="btn btn-primary btn-sm no-print">Imprimir / Salvar PDF</button>
+                <p class="small text-muted mt-1 mb-0">Gerado em: {{ data_hora }}</p>
+            </div>
+        </div>
+        <table class="table table-bordered table-striped text-center">
+            <thead class="table-dark">
+                <tr>
+                    <th>Código</th>
+                    <th class="text-start">Descrição / Equipamento</th>
+                    <th>Linha / Setor</th>
+                    <th>Status Operacional</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in maquinas %}
+                <tr>
+                    <td class="fw-bold">{{ m.codigo }}</td>
+                    <td class="text-start">{{ m.descricao }}</td>
+                    <td>{{ m.linha or 'N/A' }}</td>
+                    <td>
+                        {% if m.status == 'Operando' %}
+                            <span class="text-success fw-bold">✔ Operando</span>
+                        {% else %}
+                            <span class="text-danger fw-bold">✘ Defeito / Parada</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center text-muted">Nenhum equipamento localizado.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <script>window.onload = function() { window.print(); }</script>
+    </body>
+    </html>
+    """
+    return render_template_string(html_template, maquinas=maquinas, codigo=codigo, descricao=descricao, linha=linha,
+                                  data_hora=datetime.now().strftime('%d/%m/%Y às %H:%M:%S'))
+
+
+@app.route('/relatorio/ordens')
+@login_required
+def relatorio_ordens():
+    ordens = OrdemServico.query.all()
+
+    html_template = """
+    <!DOCTYPE html>
+    <html lang="pt">
+    <head>
+        <meta charset="UTF-8">
+        <title>Histórico de O.S. - GestorPecas</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+            body { padding: 30px; font-family: sans-serif; background-color: #fff; }
+            .report-header { border-bottom: 2px solid #333; margin-bottom: 20px; padding-bottom: 10px; }
+            @media print { .no-print { display: none; } }
+        </style>
+    </head>
+    <body>
+        <div class="d-flex justify-content-between align-items-center report-header">
+            <div>
+                <h2>GestorPecas - Histórico Geral de Ordens de Serviço</h2>
+                <p class="text-muted mb-0">Controle integrado e histórico de manutenções executadas</p>
+            </div>
+            <div class="text-end">
+                <button onclick="window.print()" class="btn btn-primary btn-sm no-print">Imprimir / Salvar PDF</button>
+                <p class="small text-muted mt-1 mb-0">Gerado em: {{ data_hora }}</p>
+            </div>
+        </div>
+        <table class="table table-bordered table-striped">
+            <thead class="table-dark text-center">
+                <tr>
+                    <th>Nº O.S.</th>
+                    <th>Máquina / Equipamento</th>
+                    <th>Defeito / Escopo Relatado</th>
+                    <th>Prazo Limite</th>
+                    <th>Status</th>
+                    <th>Insumos Mapeados</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for os in ordens %}
+                <tr>
+                    <td class="text-center fw-bold">#{{ os.id }}</td>
+                    <td><strong>{{ os.maquina.codigo }}</strong> - {{ os.maquina.descricao }}</td>
+                    <td>{{ os.descricao_defeito }}</td>
+                    <td class="text-center">{{ os.prazo_previsto.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-center">
+                        {% if os.status == 'Pendente' %}
+                            <span class="text-warning fw-bold">Pendente</span>
+                        {% else %}
+                            <span class="text-success fw-bold">Concluída</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for p in os.itens_previstos %}
+                            <small>• {{ p.item.descricao }} (Qtd: {{ p.quantidade_prevista }})</small><br>
+                        {% else %}
+                            <small class="text-muted">Nenhum</small>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted">Nenhuma ordem de serviço registrada no histórico.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <script>window.onload = function() { window.print(); }</script>
+    </body>
+    </html>
+    """
+    return render_template_string(html_template, ordens=ordens,
+                                  data_hora=datetime.now().strftime('%d/%m/%Y às %H:%M:%S'))
 
 
 if __name__ == '__main__':

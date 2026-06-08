@@ -18,66 +18,66 @@
 <body class="bg-light">
 
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
-    <div class="container-fluid">
-        <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
-            <svg class="me-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height=\"30\" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#38bdf8" stroke="#38bdf8" stroke-width="2"/>
-            </svg>
-            <strong>GestorPecas</strong>
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+        <div class="container-fluid">
+            <a class="navbar-brand d-flex align-items-center" href="{{ url_for('dashboard') }}">
+                <svg class="me-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z" fill="#38bdf8" stroke="#38bdf8" stroke-width="2"/>
+                </svg>
+                <strong>GestorPecas</strong>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
 
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('dashboard') }}">
-                        <i class="bi bi-speedometer2"></i> Dashboard
-                    </a>
-                </li>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </a>
+                    </li>
 
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('listar_itens') }}">
-                        <i class="bi bi-box-seam"></i> Estoque
-                    </a>
-                </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('listar_itens') }}">
+                            <i class="bi bi-box-seam"></i> Estoque
+                        </a>
+                    </li>
 
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('listar_ordens') }}">
-                        <i class="bi bi-file-earmark-wrench"></i> Ordens de Serviço
-                    </a>
-                </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('listar_ordens') }}">
+                            <i class="bi bi-file-earmark-wrench"></i> Ordens de Serviço
+                        </a>
+                    </li>
 
-                {% if current_user.role in ['Administrador', 'Tecnico'] %}
-                <li class="nav-item">
-                    <a class="nav-link text-info fw-bold" href="/manutencao/calendario">
-                        <i class="bi bi-calendar3"></i> Calendário
-                    </a>
-                </li>
-                {% endif %}
+                    {% if current_user.role in ['Administrador', 'Tecnico'] %}
+                    <li class="nav-item">
+                        <a class="nav-link text-info fw-bold" href="/manutencao/calendario">
+                            <i class="bi bi-calendar3"></i> Calendário
+                        </a>
+                    </li>
+                    {% endif %}
 
-                {% if current_user.role in ['Administrador', 'Tecnico'] %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('listar_maquinas') }}">
-                        <i class="bi bi-gear-wide-connected"></i> Máquinas
-                    </a>
-                </li>
-                {% endif %}
+                    {% if current_user.role in ['Administrador', 'Tecnico'] %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('listar_maquinas') }}">
+                            <i class="bi bi-gear-wide-connected"></i> Máquinas
+                        </a>
+                    </li>
+                    {% endif %}
 
-                {% if current_user.role == 'Administrador' %}
-                <li class="nav-item">
-                    <a class="nav-link text-warning fw-bold" href="/usuarios">
-                        <i class="bi bi-people"></i> Usuários
-                    </a>
-                </li>
-                {% endif %}
-            </ul>
-            <span class="navbar-text text-white me-3">Olá, {{ current_user.username }} ({{ current_user.role }})</span>
-            <a href="/logout" class="btn btn-outline-danger btn-sm">Sair</a>
+                    {% if current_user.role == 'Administrador' %}
+                    <li class="nav-item">
+                        <a class="nav-link text-warning fw-bold" href="/usuarios">
+                            <i class="bi bi-people"></i> Usuários
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <span class="navbar-text text-white me-3">Olá, {{ current_user.username }} ({{ current_user.role }})</span>
+                <a href="/logout" class="btn btn-outline-danger btn-sm">Sair</a>
+            </div>
         </div>
-    </div>
-</nav>
+    </nav>
 
     <div class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -85,7 +85,7 @@
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
                         {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss=\"alert\"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 {% endfor %}
             {% endif %}

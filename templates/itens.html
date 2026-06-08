@@ -3,10 +3,16 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2>Controle de Estoque e Peças</h2>
-    <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovoItem">+ Novo Item</button>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('imprimir_relatorio_itens', search=termo_busca) }}" target="_blank" class="btn btn-primary">
+            <i class="bi bi-printer"></i> Imprimir Relatório
+        </a>
+        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovoItem">+ Novo Item</button>
+    </div>
 </div>
 
 <div class="card shadow mb-4">
+...
     <div class="card-body">
         <form method="GET" action="/itens" class="row g-3 align-items-center">
             <div class="col-md-10">
@@ -45,7 +51,8 @@
                                 <span class="badge bg-success fs-6">{{ item.estoque_atual }}</span>
                             {% endif %}
                         </td>
-                        <td onclick="event.stopPropagation();"> <button class="btn btn-sm btn-outline-primary" onclick="abrirModalMovimentacao({{ item.id }}, 'Entrada')">Entrada</button>
+                        <td onclick="event.stopPropagation();">
+                            <button class="btn btn-sm btn-outline-primary" onclick="abrirModalMovimentacao({{ item.id }}, 'Entrada')">Entrada</button>
                             <button class="btn btn-sm btn-outline-danger" onclick="abrirModalMovimentacao({{ item.id }}, 'Baixa')">Baixa</button>
                         </td>
                     </tr>
@@ -71,8 +78,7 @@
                 <div class="row">
                     <div class="col-md-4 text-center">
                         <img id="itemImagemPrincipal" src="/static/img/placeholder.png" alt="Imagem da Peça" class="imagem-proporcional shadow-sm mb-2">
-                        <div id="galeriaMiniaturas" class="d-flex justify-content-center gap-2 mt-2">
-                            </div>
+                        <div id="galeriaMiniaturas" class="d-flex justify-content-center gap-2 mt-2"></div>
                     </div>
 
                     <div class="col-md-8">
@@ -231,7 +237,6 @@ async function abrirDetalhesItem(itemId) {
         const imgPrincipal = document.getElementById('itemImagemPrincipal');
         if (data.imagens && data.imagens.length > 0) {
             imgPrincipal.src = `/static/uploads/${data.imagens[0]}`;
-            // Aqui poderia ser implementado um loop para popular as miniaturas em 'galeriaMiniaturas'
         } else {
             imgPrincipal.src = 'https://via.placeholder.com/400?text=Sem+Imagem';
         }
@@ -263,7 +268,7 @@ function abrirModalMovimentacao(itemId, tipo) {
         document.getElementById('divOrdemServico').style.display = 'block';
         document.querySelector('#modalMovimentacao .modal-header').className = 'modal-header bg-danger text-white';
     }
-    
+
     var modal = new bootstrap.Modal(document.getElementById('modalMovimentacao'));
     modal.show();
 }

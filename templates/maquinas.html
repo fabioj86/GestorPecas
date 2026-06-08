@@ -4,7 +4,10 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-gear-wide-connected"></i> Controle de Máquinas</h2>
     <div class="d-flex gap-2">
-        <!-- BOTÃO GLOBAL DE ABERTURA DE O.S. (ACESSO PARA ADMINISTRADOR E TÉCNICO) -->
+        <a href="{{ url_for('relatorio_maquinas', codigo=request.args.get('codigo', ''), descricao=request.args.get('descricao', ''), linha=request.args.get('linha', '')) }}" target="_blank" class="btn btn-outline-primary">
+            <i class="bi bi-printer"></i> Imprimir Relatório
+        </a>
+
         {% if current_user.role in ['Administrador', 'Tecnico'] %}
         <button class="btn btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#modalNovaOSGeral">
             <i class="bi bi-file-earmark-wrench-fill"></i> + Ordem Serviço
@@ -36,12 +39,12 @@
 
 <div class="card shadow">
     <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-hover align-middle mb-0 text-center">
             <thead class="table-dark">
                 <tr>
                     <th>Imagem</th>
                     <th>Código</th>
-                    <th>Descrição</th>
+                    <th class="text-start">Descrição</th>
                     <th>Linha</th>
                     <th>Status</th>
                     <th>Ações</th>
@@ -58,7 +61,7 @@
                         {% endif %}
                     </td>
                     <td class="fw-bold">{{ m.codigo }}</td>
-                    <td>{{ m.descricao }}</td>
+                    <td class="text-start">{{ m.descricao }}</td>
                     <td>{{ m.linha }}</td>
                     <td>
                         {% if m.status == 'Operando' %}
@@ -69,12 +72,10 @@
                     </td>
                     <td>
                         <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-primary"
-                                onclick="abrirModalAtualizar('{{ m.id }}', '{{ m.ordem_id_aberta }}')">
+                            <button class="btn btn-sm btn-primary" onclick="abrirModalAtualizar('{{ m.id }}', '{{ m.ordem_id_aberta }}')">
                                 <i class="bi bi-pencil-square"></i> Atualizar
                             </button>
 
-                            <!-- AÇÕES EXCLUSIVAS APENAS PARA ADMINISTRADORES -->
                             {% if current_user.role == 'Administrador' %}
                             <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditarMaquina{{ m.id }}">
                                 <i class="bi bi-pencil"></i> Editar
@@ -87,18 +88,16 @@
                     </td>
                 </tr>
 
-                <!-- MODAIS EXCLUSIVOS DE GERENCIAMENTO (APENAS ADMINISTRADORES) -->
                 {% if current_user.role == 'Administrador' %}
-                <!-- MODAL: EDITAR CADASTRO DA MÁQUINA -->
                 <div class="modal fade" id="modalEditarMaquina{{ m.id }}" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog">
-                        <div class="modal-content">
+                        <div class="modal-content text-start">
                             <div class="modal-header bg-primary text-white">
                                 <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Editar Equipamento: {{ m.codigo }}</h5>
                                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                             </div>
                             <form action="/maquina/editar/{{ m.id }}" method="POST">
-                                <div class="modal-body text-start">
+                                <div class="modal-body">
                                     <div class="mb-3">
                                         <label class="form-label">Código da Máquina *</label>
                                         <input type="text" class="form-control" name="codigo" value="{{ m.codigo }}" required>
@@ -128,15 +127,14 @@
                     </div>
                 </div>
 
-                <!-- MODAL: CONFIRMAR EXCLUSÃO DA MÁQUINA -->
                 <div class="modal fade" id="modalExcluirMaquina{{ m.id }}" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog">
-                        <div class="modal-content">
+                        <div class="modal-content text-start">
                             <div class="modal-header bg-danger text-white">
                                 <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill"></i> Confirmar Exclusão</h5>
                                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                             </div>
-                            <div class="modal-body text-start">
+                            <div class="modal-body">
                                 <p>Tem certeza absoluta que deseja remover a máquina <strong>{{ m.codigo }}</strong> do sistema?</p>
                                 <p class="text-muted"><small><strong>Nome/Descrição:</strong> {{ m.descricao }}</small></p>
                                 <div class="alert alert-warning mb-0" role="alert">
@@ -160,21 +158,16 @@
     </div>
 </div>
 
-<!-- ============================================================================= -->
-<!-- MODAIS GLOBAIS DA PÁGINA                                                       -->
-<!-- ============================================================================= -->
-
-<!-- MODAL GLOBAL: CRIAR NOVA ORDEM DE SERVIÇO (ACESSO: ADMINISTRADOR E TÉCNICO) -->
 {% if current_user.role in ['Administrador', 'Tecnico'] %}
 <div class="modal fade" id="modalNovaOSGeral" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
-        <div class="modal-content">
+        <div class="modal-content text-start">
             <div class="modal-header bg-warning text-dark">
                 <h5 class="modal-title fw-bold"><i class="bi bi-file-earmark-plus-fill"></i> Abrir Nova Ordem de Serviço</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form action="/ordem/nova" method="POST" enctype="multipart/form-data">
-                <div class="modal-body text-start">
+                <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label fw-bold">Selecione o Equipamento / Máquina *</label>
@@ -204,7 +197,7 @@
                                     <select class="form-select" name="pecas_sku[]">
                                         <option value="">Selecione uma peça do almoxarifado...</option>
                                         {% for p in pecas %}
-                                            <option value="{{ p.sku }}">{{ p.descricao }} (Saldo: {{ p.estoque_atual }})</option>
+                                        <option value="{{ p.sku }}">{{ p.descricao }} (Saldo: {{ p.estoque_atual }})</option>
                                         {% endfor %}
                                     </select>
                                 </div>
@@ -231,16 +224,15 @@
 </div>
 {% endif %}
 
-<!-- MODAL GLOBAL: CADASTRAR NOVA MÁQUINA -->
 <div class="modal fade" id="modalNovaMaquina" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
-        <div class="modal-content">
+        <div class="modal-content text-start">
             <div class="modal-header bg-success text-white">
                 <h5 class="modal-title">Cadastrar Novo Equipamento</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <form action="/maquina/nova" method="POST" enctype="multipart/form-data">
-                <div class="modal-body text-start">
+                <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Código da Máquina *</label>
                         <input type="text" class="form-control" name="codigo" required>
@@ -260,7 +252,6 @@
                             <option value="Defeito">Com Defeito / Parada</option>
                         </select>
                     </div>
-
                     <div class="mb-3">
                         <label class="form-label fw-bold">Imagens do Equipamento</label>
                         <input type="file" class="form-control" name="imagens" multiple accept="image/*">
@@ -278,7 +269,7 @@
 
 <div class="modal fade" id="modalAtualizarManutencao" tabindex="-1" aria-labelledby="modalAtualizarLabel" aria-hidden="true">
     <div class="modal-dialog">
-        <div class="modal-content">
+        <div class="modal-content text-start">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title" id="modalAtualizarLabel"><i class="bi bi-tools"></i> Atualizar Manutenção</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -313,16 +304,13 @@
 function abrirModalAtualizar(maquinaId) {
     // Define o ID da máquina no campo oculto
     document.getElementById('atualizar_maquina_id').value = maquinaId;
-
     // Limpa os campos para novos dados
     document.getElementById('detalhes_manutencao').value = '';
     document.getElementById('novo_prazo').value = '';
-    document.getElementById('divProrrogarPrazo').style.style = 'none';
-
+    document.getElementById('divProrrogarPrazo').style.display = 'none';
     // Configura a ação padrão do formulário para Finalizar
     var form = document.getElementById('formAtualizarManutencao');
     form.action = "/maquinas/finalizar-manutencao";
-
     // Restaura o texto original do botão de prorrogar caso tenha sido clicado antes
     var btnProrrogar = document.getElementById('btnAcaoProrrogar');
     btnProrrogar.type = "button";
@@ -333,7 +321,7 @@ function abrirModalAtualizar(maquinaId) {
     m.show();
 }
 
-function ativarProrrogacao() {
+function activarProrrogacao() {
     var divPrazo = document.getElementById('divProrrogarPrazo');
     var inputPrazo = document.getElementById('novo_prazo');
     var form = document.getElementById('formAtualizarManutencao');

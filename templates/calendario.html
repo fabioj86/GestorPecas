@@ -1,34 +1,47 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>Calendário de Manutenção Preventiva</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
-    <style>
-        #calendar { max-width: 80%; margin: 0 auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .fc-event { cursor: pointer; }
-    </style>
-</head>
-<body class="bg-light">
+{% extends 'base.html' %}
 
-<div class="container-fluid mt-4">
-    <div class="row mb-3">
+{% block content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/pt-br.js"></script>
+
+<style>
+    #calendar { 
+        max-width: 100%; 
+        margin: 0 auto; 
+        background: #fff; 
+        padding: 20px; 
+        border-radius: 8px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+    }
+    .fc-event { 
+        cursor: pointer; 
+        padding: 3px; 
+        font-size: 0.9em; 
+    }
+</style>
+
+<div class="container-fluid mt-2">
+    <div class="row mb-3 align-items-center">
         <div class="col-md-6">
-            <h2><i class="form-icon"></i> Cronograma de Manutenções Industriais</h2>
+            <h2><i class="bi bi-calendar3"></i> Cronograma de Manutenções Industriais</h2>
         </div>
-        <div class="col-md-6 text-right">
-            <button class="btn btn-primary" data-toggle="modal" data-target="#modalNovoAgendamento">+ Programar Manutenção</button>
-            <a href="/dashboard" class="btn btn-secondary">Voltar ao Painel</a>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoAgendamento">
+                <i class="bi bi-calendar-plus"></i> Programar Manutenção
+            </button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left-circle"></i> Voltar ao Painel
+            </a>
         </div>
     </div>
 
-    <div class="card mb-4">
-        <div class="card-body row">
+    <div class="card mb-4 shadow-sm">
+        <div class="card-body row align-items-center">
             <div class="col-md-4">
-                <label><b>Filtrar por Status:</b></label>
-                <select id="filtroStatus" class="form-control" onchange="recarregarEventos()">
-                    <option value="">Todos os Status</option>
+                <label class="form-label fw-bold" for="filtroStatus">Filtrar por Status:</label>
+                <select id="filtroStatus" class="form-select" onchange="recarregarEventos()">
+                    <option value="Todos">Todos os Status</option>
                     <option value="Pendente">Pendentes</option>
                     <option value="Em Atraso">Em Atraso</option>
                     <option value="Concluida">Concluídas</option>
@@ -37,44 +50,42 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-12">
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
             <div id="calendar"></div>
         </div>
     </div>
 </div>
 
-<div class="modal fade" id="modalNovoAgendamento" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+<div class="modal fade" id="modalNovoAgendamento" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
         <form action="/manutencao/programar" method="POST" class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">Programar Nova Manutenção</h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <div class="form-group">
-                    <label>Equipamento / Máquina</label>
-                    <select name="maquina_id" class="form-control" required>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Equipamento / Máquina</label>
+                    <select name="maquina_id" class="form-select" required>
                         {% for m in maquinas %}
                         <option value="{{ m.id }}">{{ m.codigo }} - {{ m.descricao }} (Linha: {{ m.linha }})</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Data da Manutenção</label>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Data da Manutenção</label>
                     <input type="date" name="data_programada" class="form-control" required>
                 </div>
-                <div class="form-group">
-                    <label>Descrição das Atividades Preventivas</label>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Descrição das Atividades Preventivas</label>
                     <textarea name="descricao_atividades" class="form-control" rows="3" placeholder="Ex: Troca de óleo, verificação de rolamentos e reaperto de painel elétrico..." required></textarea>
                 </div>
 
-                <div class="form-group bg-light p-3 border rounded">
-                    <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input" id="gerar_os" name="gerar_os" value="sim" checked>
-                        <label class="custom-control-label text-dark font-weight-bold" for="gerar_os">
+                <div class="p-3 bg-light border rounded mb-3">
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="gerar_os" name="gerar_os" value="sim" checked>
+                        <label class="form-check-label text-dark fw-bold" for="gerar_os">
                             Gerar Ordem de Serviço automaticamente para esta manutenção?
                         </label>
                     </div>
@@ -82,42 +93,35 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <button type="submit" class="btn btn-success">Agendar e Salvar</button>
             </div>
         </form>
     </div>
 </div>
 
-<div class="modal fade" id="modalDetalhesManutencao" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+<div class="modal fade" id="modalDetalhesManutencao" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-dark text-white">
                 <h5 class="modal-title" id="detalheTitulo">Detalhes do Agendamento</h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <p><b>Equipamento:</b> <span id="detalheMaquina"></span></p>
                 <p><b>Setor/Linha:</b> <span id="detalheLinha"></span></p>
                 <p><b>Status Atual:</b> <span id="detalheStatus" class="badge"></span></p>
-                <p><b>O.S. Vinculada:</b> <span id="detalheOS" class="badge badge-secondary"></span></p>
+                <p><b>O.S. Vinculada:</b> <span id="detalheOS" class="badge bg-secondary"></span></p>
                 <hr>
                 <h6><b>Atividades Planejadas:</b></h6>
                 <div class="p-3 bg-light border rounded" id="detalheDescricao"></div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
             </div>
         </div>
     </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/pt-br.js"></script>
 
 <script>
     var calendar;
@@ -127,19 +131,18 @@
 
         calendar = new FullCalendar.Calendar(calendarEl, {
             locale: 'pt-br',
-            initialView: 'dayGridMonth', // Visão mensal padrão grande
+            initialView: 'dayGridMonth',
             headerToolbar: {
                 left: 'prev,next today',
                 center: 'title',
                 right: 'dayGridMonth,timeGridWeek'
             },
-            events: '/api/manutencoes/eventos', // Rota que criamos no Flask
+            events: '/api/manutencoes/eventos',
 
-            // Evento de clique em uma data marcada
             eventClick: function(info) {
                 var props = info.event.extendedProps;
 
-                // Mapeia os dados nos campos do modal de visualização
+                // Mapeia os dados do backend para os elementos do modal Bootstrap 5
                 document.getElementById('detalheTitulo').innerText = info.event.title;
                 document.getElementById('detalheMaquina').innerText = props.maquina;
                 document.getElementById('detalheLinha').innerText = props.linha;
@@ -148,35 +151,37 @@
 
                 var statusBadge = document.getElementById('detalheStatus');
                 statusBadge.innerText = props.status;
-                statusBadge.className = "badge ";
-                if(props.status === 'Pendente') statusBadge.classList.add('badge-warning');
-                else if(props.status === 'Em Atraso') statusBadge.classList.add('badge-danger');
-                else statusBadge.classList.add('badge-success');
+                
+                // Tratamento e limpeza de classes de cor do Bootstrap 5
+                statusBadge.className = "badge";
+                if (props.status === 'Pendente') {
+                    statusBadge.classList.add('bg-warning', 'text-dark');
+                } else if (props.status === 'Em Atraso') {
+                    statusBadge.classList.add('bg-danger');
+                } else {
+                    statusBadge.classList.add('bg-success');
+                }
 
-                // Abre o modal de exibição
-                $('#modalDetalhesManutencao').modal('show');
+                // Disparo de abertura nativa do Modal (Sem dependência de jQuery)
+                var modalElement = document.getElementById('modalDetalhesManutencao');
+                var bsModal = new bootstrap.Modal(modalElement);
+                bsModal.show();
             }
         });
 
         calendar.render();
     });
 
-// Função correta para atualizar os filtros dinâmicos no FullCalendar v5+
-function recarregarEventos() {
-    var statusSelecionado = document.getElementById('filtroStatus').value;
-
-    // Remove a origem de dados antiga
-    calendar.removeAllEventSources();
-
-    // Adiciona a nova origem passando o parâmetro de forma limpa como um objeto customizado
-    calendar.addEventSource({
-        url: '/api/manutencoes/eventos',
-        extraParams: {
-            status: statusSelecionado
-        }
-    });
-}
-
+    // Filtros dinâmicos integrados à API do Flask
+    function recarregarEventos() {
+        var statusSelecionado = document.getElementById('filtroStatus').value;
+        calendar.removeAllEventSources();
+        calendar.addEventSource({
+            url: '/api/manutencoes/eventos',
+            extraParams: {
+                status: statusSelecionado
+            }
+        });
+    }
 </script>
-</body>
-</html>
+{% endblock %}

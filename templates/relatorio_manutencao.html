@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Relatório Gerencial - Gestor de Manutenção Industrial</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            font-size: 11px;
+            color: #333333;
+            line-height: 1.4;
+        }
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+        }
+        .header-logo {
+            font-size: 22px;
+            font-weight: bold;
+            color: #1a1a1a;
+            text-transform: uppercase;
+        }
+        .header-title {
+            text-align: right;
+            font-size: 14px;
+            color: #555555;
+            font-weight: bold;
+        }
+        .divider {
+            border-top: 2px solid #212529;
+            margin-bottom: 20px;
+        }
+        .meta-section {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .meta-cell {
+            vertical-align: top;
+            width: 50%;
+        }
+        .card-resumo {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 12px;
+            border-radius: 4px;
+            margin-bottom: 25px;
+        }
+        .secao-titulo {
+            font-size: 13px;
+            font-weight: bold;
+            color: #212529;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 4px;
+        }
+        table.dados-tabela {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 25px;
+        }
+        table.dados-tabela th {
+            background-color: #212529;
+            color: #ffffff;
+            font-weight: bold;
+            text-align: left;
+            padding: 6px 8px;
+            border: 1px solid #323539;
+        }
+        table.dados-tabela td {
+            padding: 6px 8px;
+            border: 1px solid #dee2e6;
+            vertical-align: top;
+        }
+        table.dados-tabela tr:nth-child(even) td {
+            background-color: #f9f9f9;
+        }
+        .badge {
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 9px;
+            text-align: center;
+            display: inline-block;
+        }
+        .bg-warning { background-color: #ffc107; color: #000000; }
+        .bg-danger { background-color: #dc3545; color: #ffffff; }
+        .bg-success { background-color: #198754; color: #ffffff; }
+        .bg-info { background-color: #0dcaf0; color: #000000; }
+
+        .btn-acoes {
+            margin-top: 30px;
+            text-align: right;
+        }
+        .btn {
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .btn-secondary { background-color: #6c757d; color: #ffffff; }
+        .btn-primary { background-color: #0d6efd; color: #ffffff; margin-left: 8px; }
+    </style>
+</head>
+<body>
+
+    <table class="header-table">
+        <tr>
+            <td class="header-logo">GestorPecas</td>
+            <td class="header-title">Relatório Técnico de Manutenção Industrial</td>
+        </tr>
+    </table>
+
+    <div class="divider"></div>
+
+    <table class="meta-section">
+        <tr>
+            <td class="meta-cell">
+                <strong>Emitido por:</strong> Sistema Automatizado GestorPecas<br>
+                <strong>Data de Emissão:</strong> {{ data_atual.strftime('%d/%m/%Y às %H:%M') }}<br>
+                <strong>Filtro aplicado:</strong> Geral (Todos os registros ativados)
+            </td>
+            <td class="meta-cell" style="text-align: right;">
+                <strong>Status do Parque Fabril:</strong> Ativo<br>
+                <strong>Unidade:</strong> Planta Industrial Principal
+            </td>
+        </tr>
+    </table>
+
+    <div class="card-resumo">
+        <strong>Resumo Executivo Consolidador:</strong><br>
+        <table style="width: 100%; margin-top: 8px; border: none;">
+            <tr>
+                <td style="border: none; padding: 0;">• Total de Máquinas Cadastradas: <strong>{{ total_maquinas }}</strong></td>
+                <td style="border: none; padding: 0;">• Ordens de Serviço Listadas: <strong>{{ ordens|length }}</strong></td>
+                <td style="border: none; padding: 0;">• Manutenções Preventivas no Cronograma: <strong>{{ manutencoes_prog|length }}</strong></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="secao-titulo">Histórico de Ordens de Serviço (O.S.)</div>
+    <table class="dados-tabela">
+        <thead>
+            <tr>
+                <th style="width: 8%;">Nº O.S.</th>
+                <th style="width: 25%;">Máquina / Equipamento</th>
+                <th style="width: 37%;">Defeito Relatado / Escopo</th>
+                <th style="width: 15%;">Prazo Limite</th>
+                <th style="width: 15%;">Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for os in ordens %}
+            <tr>
+                <td><strong>#{{ os.id }}</strong></td>
+                <td>{{ os.maquina.codigo }} - {{ os.maquina.descricao }}</td>
+                <td>{{ os.descricao_defeito }}</td>
+                <td>{{ os.prazo_previsto.strftime('%d/%m/%Y') }}</td>
+                <td>
+                    {% if os.status == 'Pendente' %}
+                        <span class="badge bg-warning">Pendente</span>
+                    {% elif os.status == 'Em Atraso' %}
+                        <span class="badge bg-danger">Em Atraso</span>
+                    {% else %}
+                        <span class="badge bg-success">Concluída</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; font-style: italic;">Nenhuma Ordem de Serviço encontrada no banco de dados.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="secao-titulo">Cronograma de Manutenções Preventivas Programadas</div>
+    <table class="dados-tabela">
+        <thead>
+            <tr>
+                <th style="width: 8%;">ID</th>
+                <th style="width: 25%;">Equipamento Alvo</th>
+                <th style="width: 37%;">Atividades Preventivas Planejadas</th>
+                <th style="width: 15%;">Data Planejada</th>
+                <th style="width: 15%;">O.S. Vinculada</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for mp in manutencoes_prog %}
+            <tr>
+                <td>#{{ mp.id }}</td>
+                <td>{{ mp.maquina.codigo }} - {{ mp.maquina.descricao }}</td>
+                <td>{{ mp.descricao_atividades }}</td>
+                <td>{{ mp.data_programada.strftime('%d/%m/%Y') }}</td>
+                <td>
+                    {% if mp.os_gerada_id %}
+                        <span class="badge bg-info">O.S. #{{ mp.os_gerada_id }}</span>
+                    {% else %}
+                        <span class="badge bg-secondary" style="background-color: #6c757d; color: #fff;">Não Gerada</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" style="text-align: center; font-style: italic;">Nenhuma manutenção programada inserida no cronograma.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if not is_pdf %}
+    <div class="btn-acoes">
+        <button onclick="window.print();" class="btn btn-secondary">
+            <i class="bi bi-printer"></i> Imprimir via Navegador
+        </button>
+        <a href="/relatorios/pdf" class="btn btn-primary">
+            <i class="bi bi-file-earmark-pdf"></i> Exportar Arquivo PDF
+        </a>
+    </div>
+    {% endif %}
+
+</body>
+</html>
