@@ -12,7 +12,6 @@
 </div>
 
 <div class="card shadow mb-4">
-...
     <div class="card-body">
         <form method="GET" action="/itens" class="row g-3 align-items-center">
             <div class="col-md-10">
@@ -54,6 +53,14 @@
                         <td onclick="event.stopPropagation();">
                             <button class="btn btn-sm btn-outline-primary" onclick="abrirModalMovimentacao({{ item.id }}, 'Entrada')">Entrada</button>
                             <button class="btn btn-sm btn-outline-danger" onclick="abrirModalMovimentacao({{ item.id }}, 'Baixa')">Baixa</button>
+                            {% if current_user.role == 'Administrador' %}
+                            <button class="btn btn-sm btn-outline-warning" onclick="abrirModalEditarItem({{ item.id }})">
+                                <i class="bi bi-pencil"></i> Editar
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="confirmarExclusao({{ item.id }}, '{{ item.sku }}')">
+                                <i class="bi bi-trash"></i> Excluir
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
@@ -76,12 +83,7 @@
             </div>
             <div class="modal-body">
                 <div class="row">
-                    <div class="col-md-4 text-center">
-                        <img id="itemImagemPrincipal" src="/static/img/placeholder.png" alt="Imagem da Peça" class="imagem-proporcional shadow-sm mb-2">
-                        <div id="galeriaMiniaturas" class="d-flex justify-content-center gap-2 mt-2"></div>
-                    </div>
-
-                    <div class="col-md-8">
+                    <div class="col-12">
                         <table class="table table-bordered">
                             <tbody>
                                 <tr><th class="bg-light w-25">Código (SKU):</th><td id="infoSku"></td></tr>
@@ -112,6 +114,14 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <div class="row mt-4">
+                    <div class="col-12 text-center">
+                        <h6 class="mb-3">Imagem da Peça</h6>
+                        <img id="itemImagemPrincipal" src="/static/img/placeholder.png" alt="Imagem da Peça" class="imagem-proporcional shadow-sm mb-2">
+                        <div id="galeriaMiniaturas" class="d-flex justify-content-center gap-2 mt-2"></div>
                     </div>
                 </div>
             </div>
@@ -216,27 +226,101 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalEditarItem" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Editar Peça</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/item/editar" method="POST" enctype="multipart/form-data">
+                <div class="modal-body">
+                    <input type="hidden" name="item_id" id="edit_item_id">
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Código (SKU) *</label>
+                            <input type="text" class="form-control" name="sku" id="edit_sku" required readonly>
+                            <small class="text-muted">SKU não pode ser alterado</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Categoria</label>
+                            <input type="text" class="form-control" name="categoria" id="edit_categoria" placeholder="Ex: Elétrica, Hidráulica...">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descrição *</label>
+                        <input type="text" class="form-control" name="descricao" id="edit_descricao" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Fornecedor</label>
+                            <input type="text" class="form-control" name="fornecedor" id="edit_fornecedor">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Preço Unitário (R$)</label>
+                            <input type="text" class="form-control" name="preco_unitario" id="edit_preco_unitario" placeholder="Ex: 150.50">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Localização</label>
+                            <input type="text" class="form-control" name="localizacao" id="edit_localizacao" placeholder="Ex: Prateleira B2">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Estoque Mínimo</label>
+                            <input type="number" class="form-control" name="estoque_minimo" id="edit_estoque_minimo" value="0">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Estoque Máximo</label>
+                            <input type="number" class="form-control" name="estoque_maximo" id="edit_estoque_maximo" value="0">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Adicionar Imagens (Opcional)</label>
+                        <input type="file" class="form-control" name="imagens" accept="image/*" multiple>
+                        <small class="text-muted">Deixe em branco para manter as imagens atuais</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Atualizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
 // Função assíncrona (AJAX) para buscar os detalhes do item no Backend
 async function abrirDetalhesItem(itemId) {
     try {
         const response = await fetch(`/api/item/${itemId}`);
+        
+        if (!response.ok) {
+            throw new Error(`Erro HTTP: ${response.status}`);
+        }
+        
         const data = await response.json();
 
         // Preenche os dados no HTML do Modal
-        document.getElementById('infoSku').innerText = data.sku;
-        document.getElementById('infoDescricao').innerText = data.descricao;
+        document.getElementById('infoSku').innerText = data.sku || '';
+        document.getElementById('infoDescricao').innerText = data.descricao || '';
         document.getElementById('infoCategoria').innerText = data.categoria || 'N/A';
         document.getElementById('infoLocalizacao').innerText = data.localizacao || 'N/A';
-        document.getElementById('infoPreco').innerText = `R$ ${data.preco.toFixed(2).replace('.', ',')}`;
-        document.getElementById('infoEstoqueAtual').innerText = data.estoque_atual;
-        document.getElementById('infoEstoqueMin').innerText = data.estoque_minimo;
-        document.getElementById('infoEstoqueMax').innerText = data.estoque_maximo;
+        
+        // Garantir que preco é um número válido
+        const preco = parseFloat(data.preco) || 0;
+        document.getElementById('infoPreco').innerText = `R$ ${preco.toFixed(2).replace('.', ',')}`;
+        
+        document.getElementById('infoEstoqueAtual').innerText = data.estoque_atual || '0';
+        document.getElementById('infoEstoqueMin').innerText = data.estoque_minimo || '0';
+        document.getElementById('infoEstoqueMax').innerText = data.estoque_maximo || '0';
 
         // Lógica de imagens
         const imgPrincipal = document.getElementById('itemImagemPrincipal');
         if (data.imagens && data.imagens.length > 0) {
-            imgPrincipal.src = `/static/uploads/${data.imagens[0]}`;
+            imgPrincipal.src = `/static/${data.imagens[0]}`;
         } else {
             imgPrincipal.src = 'https://via.placeholder.com/400?text=Sem+Imagem';
         }
@@ -246,8 +330,8 @@ async function abrirDetalhesItem(itemId) {
         myModal.show();
 
     } catch (error) {
-        alert("Erro ao carregar as informações do item.");
-        console.error(error);
+        console.error('Erro detalhado:', error);
+        alert("Erro ao carregar as informações do item. Verifique o console para mais detalhes.");
     }
 }
 
@@ -271,6 +355,45 @@ function abrirModalMovimentacao(itemId, tipo) {
 
     var modal = new bootstrap.Modal(document.getElementById('modalMovimentacao'));
     modal.show();
+}
+
+// Função para abrir modal de edição do item
+async function abrirModalEditarItem(itemId) {
+    try {
+        const response = await fetch(`/api/item/${itemId}`);
+        const data = await response.json();
+
+        // Preenche os campos do formulário de edição
+        document.getElementById('edit_item_id').value = itemId;
+        document.getElementById('edit_sku').value = data.sku;
+        document.getElementById('edit_descricao').value = data.descricao;
+        document.getElementById('edit_categoria').value = data.categoria || '';
+        document.getElementById('edit_localizacao').value = data.localizacao || '';
+        document.getElementById('edit_fornecedor').value = data.fornecedor || '';
+        document.getElementById('edit_preco_unitario').value = data.preco || '0';
+        document.getElementById('edit_estoque_minimo').value = data.estoque_minimo || '0';
+        document.getElementById('edit_estoque_maximo').value = data.estoque_maximo || '0';
+
+        // Abre o Modal usando Bootstrap JS
+        var myModal = new bootstrap.Modal(document.getElementById('modalEditarItem'));
+        myModal.show();
+
+    } catch (error) {
+        alert("Erro ao carregar as informações do item.");
+        console.error(error);
+    }
+}
+
+// Função para confirmar exclusão
+function confirmarExclusao(itemId, sku) {
+    if (confirm(`Tem certeza que deseja excluir o item com SKU "${sku}"? Esta ação é irreversível.`)) {
+        // Criar e submeter formulário oculto
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/item/excluir/${itemId}`;
+        document.body.appendChild(form);
+        form.submit();
+    }
 }
 </script>
 {% endblock %}

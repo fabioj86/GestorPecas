@@ -3,8 +3,16 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2><i class="bi bi-gear-wide-connected"></i> Controle de Máquinas</h2>
+
+    <div class="form-check form-switch bg-white p-2 px-3 rounded shadow-sm border">
+        <input class="form-check-input" type="checkbox" id="checkInativos" name="incluir_inativos" value="true"
+               {% if request.args.get('incluir_inativos') == 'true' %}checked{% endif %}
+               onchange="filtrarInativos()">
+        <label class="form-check-label fw-bold text-secondary" for="checkInativos">Listar Inativos</label>
+    </div>
+
     <div class="d-flex gap-2">
-        <a href="{{ url_for('relatorio_maquinas', codigo=request.args.get('codigo', ''), descricao=request.args.get('descricao', ''), linha=request.args.get('linha', '')) }}" target="_blank" class="btn btn-outline-primary">
+        <a href="{{ url_for('relatorio_maquinas', codigo=request.args.get('codigo', ''), descricao=request.args.get('descricao', ''), linha=request.args.get('linha', '')) }}" target="_blank" class="btn btn-primary">
             <i class="bi bi-printer"></i> Imprimir Relatório
         </a>
 
@@ -17,6 +25,22 @@
         <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNovaMaquina">+ Nova Máquina</button>
     </div>
 </div>
+
+<script>
+function filtrarInativos() {
+    const checkbox = document.getElementById('checkInativos');
+    const urlParams = new URLSearchParams(window.location.search);
+
+    if (checkbox.checked) {
+        urlParams.set('incluir_inativos', 'true');
+    } else {
+        urlParams.delete('incluir_inativos');
+    }
+
+    // Recarrega a página atual mantendo os filtros de código, descrição e injetando o de inativos
+    window.location.search = urlParams.toString();
+}
+</script>
 
 <div class="card mb-4 bg-light">
     <div class="card-body">
@@ -113,8 +137,8 @@
                                     <div class="mb-3">
                                         <label class="form-label">Status Atual</label>
                                         <select class="form-select" name="status">
-                                            <option value="Operando" {% if m.status == 'Operando' %}selected{% endif %}>Operando</option>
-                                            <option value="Defeito" {% if m.status == 'Defeito' %}selected{% endif %}>Com Defeito / Parada</option>
+                                            <option value="Operando" {% if m.status =='Operando' %}selected{% endif %}>Operando</option>
+                                            <option value="Defeito" {% if m.status =='Defeito' %}selected{% endif %}>Com Defeito / Parada</option>
                                         </select>
                                     </div>
                                 </div>
@@ -174,7 +198,15 @@
                             <select class="form-select" name="maquina_id" required>
                                 <option value="" disabled selected>Escolha uma máquina...</option>
                                 {% for mq in todas_maquinas %}
-                                    <option value="{{ mq.id }}">{{ mq.codigo }} - {{ mq.descricao }}</option>
+                                    <tr {% if not mq.ativo %}class="table-secondary text-muted" style="opacity: 0.7;"{% endif %}>
+                                        <td>{{ mq.codigo }}</td>
+                                        <td>
+                                            {{ mq.descricao }}
+                                            {% if not mq.ativo %}
+                                                <span class="badge bg-danger ms-2">Inativa/Excluída</span>
+                                            {% endif %}
+                                        </td>
+                                        </tr>
                                 {% endfor %}
                             </select>
                         </div>

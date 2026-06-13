@@ -30,9 +30,6 @@
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoAgendamento">
                 <i class="bi bi-calendar-plus"></i> Programar Manutenção
             </button>
-            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
-                <i class="bi bi-arrow-left-circle"></i> Voltar ao Painel
-            </a>
         </div>
     </div>
 
@@ -118,13 +115,65 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                {% if current_user.role == 'Administrador' %}
+                <button type="button" class="btn btn-outline-warning" id="btnEditarManutencao">
+                    <i class="bi bi-pencil"></i> Editar
+                </button>
+                <button type="button" class="btn btn-outline-danger" id="btnExcluirManutencao">
+                    <i class="bi bi-trash"></i> Excluir
+                </button>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
 
+<div class="modal fade" id="modalEditarManutencao" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form action="/manutencao/editar" method="POST" class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Editar Manutenção Programada</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="manutencao_id" id="edit_manutencao_id">
+                
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Equipamento / Máquina</label>
+                    <select name="maquina_id" id="edit_maquina_id" class="form-select" required>
+                        {% for m in maquinas %}
+                        <option value="{{ m.id }}">{{ m.codigo }} - {{ m.descricao }} (Linha: {{ m.linha }})</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Data da Manutenção</label>
+                    <input type="date" name="data_programada" id="edit_data_programada" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Descrição das Atividades Preventivas</label>
+                    <textarea name="descricao_atividades" id="edit_descricao_atividades" class="form-control" rows="3" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Status</label>
+                    <select name="status" id="edit_status" class="form-select" required>
+                        <option value="Pendente">Pendente</option>
+                        <option value="Em Atraso">Em Atraso</option>
+                        <option value="Concluida">Concluída</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-warning">Atualizar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     var calendar;
+    var manutencaoSelecionada = null;
 
     document.addEventListener('DOMContentLoaded', function() {
         var calendarEl = document.getElementById('calendar');
@@ -140,6 +189,7 @@
             events: '/api/manutencoes/eventos',
 
             eventClick: function(info) {
+                manutencaoSelecionada = info.event.id;
                 var props = info.event.extendedProps;
 
                 // Mapeia os dados do backend para os elementos do modal Bootstrap 5
@@ -183,5 +233,47 @@
             }
         });
     }
+
+    // Função para editar manutenção
+    document.addEventListener('DOMContentLoaded', function() {
+        if (document.getElementById('btnEditarManutencao')) {
+            document.getElementById('btnEditarManutencao').addEventListener('click', function() {
+                if (manutencaoSelecionada) {
+                    document.getElementById('edit_manutencao_id').value = manutencaoSelecionada;
+                    
+                    fetch(`/api/manutencao/${manutencaoSelecionada}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            document.getElementById('edit_maquina_id').value = data.maquina_id;
+                            document.getElementById('edit_data_programada').value = data.data_programada;
+                            document.getElementById('edit_descricao_atividades').value = data.descricao_atividades;
+                            document.getElementById('edit_status').value = data.status;
+                            
+                            bootstrap.Modal.getInstance(document.getElementById('modalDetalhesManutencao')).hide();
+                            new bootstrap.Modal(document.getElementById('modalEditarManutencao')).show();
+                        })
+                        .catch(error => {
+                            alert('Erro ao carregar dados da manutenção');
+                            console.error(error);
+                        });
+                }
+            });
+        }
+
+        // Função para excluir manutenção
+        if (document.getElementById('btnExcluirManutencao')) {
+            document.getElementById('btnExcluirManutencao').addEventListener('click', function() {
+                if (manutencaoSelecionada) {
+                    if (confirm('Tem certeza que deseja excluir esta manutenção programada? Esta ação é irreversível.')) {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.action = `/manutencao/excluir/${manutencaoSelecionada}`;
+                        document.body.appendChild(form);
+                        form.submit();
+                    }
+                }
+            });
+        }
+    });
 </script>
 {% endblock %}

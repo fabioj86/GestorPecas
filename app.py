@@ -91,12 +91,17 @@ def dashboard():
         OrdemServico.prazo_previsto <= prazo_critico
     ).all()
 
+    # Itens com estoque abaixo do mínimo
+    alertas = Item.query.filter(Item.estoque_atual <= Item.estoque_minimo).all()
+
     return render_template('paineldecontrole.html',
                            total_itens=total_itens,
                            total_maquinas=total_maquinas,
                            os_pendentes=os_pendentes,
                            os_em_atraso=os_em_atraso,
-                           os_no_prazo_critico=os_no_prazo_critico)
+                           os_atrasadas=os_em_atraso,
+                           os_no_prazo_critico=os_no_prazo_critico,
+                           alertas=alertas)
 
 
 # ----------------------------------------------------------------------------
@@ -130,49 +135,159 @@ def item_novo():
     estoque_minimo = request.form.get('estoque_minimo', 0)
     estoque_maximo = request.form.get('estoque_maximo', 0)
 
+    # Validação: verificar se SKU já existe
+    if Item.query.filter_by(sku=sku).first():
+        flash(f'Erro: O código (SKU) "{sku}" já está cadastrado no sistema!', 'danger')
+        return redirect(url_for('listar_itens'))
+
     try:
         preco_unitario = float(preco_unitario.replace(',', '.'))
     except ValueError:
         preco_unitario = 0.0
 
-    novo_item = Item(
-        sku=sku, categoria=categoria, descricao=descricao,
-        fornecedor=fornecedor, preco_unitario=preco_unitario,
-        localizacao=localizacao, estoque_minimo=int(estoque_minimo or 0),
-        estoque_maximo=int(estoque_maximo or 0), estoque_atual=0
-    )
-    db.session.add(novo_item)
-    db.session.commit()
+    try:
+        novo_item = Item(
+            sku=sku, categoria=categoria, descricao=descricao,
+            fornecedor=fornecedor, preco_unitario=preco_unitario,
+            localizacao=localizacao, estoque_minimo=int(estoque_minimo or 0),
+            estoque_maximo=int(estoque_maximo or 0), estoque_atual=0
+        )
+        db.session.add(novo_item)
+        db.session.flush()  # Garante que o novo_item.id seja gerado
+        print(f"✓ Item criado com sucesso: ID={novo_item.id}, SKU={sku}")
 
-    imagens = request.files.getlist('imagens')
-    for img in imagens:
-        if img and img.filename:
-            nome_seguro = secure_filename(f"{novo_item.id}_{img.filename}")
-            img.save(os.path.join(app.config['UPLOAD_ITENS'], nome_seguro))
-            nova_img = ItemImagem(item_id=novo_item.id, caminho_arquivo=nome_seguro)
-            db.session.add(nova_img)
+        imagens = request.files.getlist('imagens')
+        print(f"✓ Número de imagens recebidas: {len(imagens)}")
+        
+        for idx, img in enumerate(imagens):
+            if img and img.filename:
+                nome_seguro = secure_filename(f"{novo_item.id}_{img.filename}")
+                caminho_arquivo = os.path.join(app.config['UPLOAD_ITENS'], nome_seguro)
+                print(f"  → Salvando imagem {idx+1}: {nome_seguro}")
+                img.save(caminho_arquivo)
+                
+                nova_img = ItemImagem(item_id=novo_item.id, caminho_imagem=nome_seguro)
+                db.session.add(nova_img)
+                print(f"  ✓ Registro de imagem adicionado ao banco de dados")
 
-    db.session.commit()
-    flash('Peça cadastrada com sucesso!', 'success')
-    return redirect(url_for('listar_itens'))
+        db.session.commit()
+        print(f"✓ Item finalizado com {len(imagens)} imagem(ns)")
+        flash('Peça cadastrada com sucesso!', 'success')
+        return redirect(url_for('listar_itens'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"✗ Erro ao cadastrar item: {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Erro ao cadastrar a peça: {str(e)}', 'danger')
+        return redirect(url_for('listar_itens'))
 
 
 @app.route('/api/item/<int:item_id>')
 @login_required
 def api_item(item_id):
     item = Item.query.get_or_404(item_id)
-    imagens = [img.caminho_arquivo for img in item.imagens]
+    imagens = [f"uploads/{img.caminho_imagem}" for img in item.imagens]
+    
+    # Converter Decimal para float para serialização JSON
+    preco = float(item.preco_unitario) if item.preco_unitario else 0.0
+    
     return jsonify({
         'sku': item.sku,
         'descricao': item.descricao,
-        'categoria': item.categoria,
-        'localizacao': item.localizacao,
-        'preco': item.preco_unitario or 0.0,
+        'categoria': item.categoria or '',
+        'localizacao': item.localizacao or '',
+        'preco': preco,
         'estoque_atual': item.estoque_atual,
         'estoque_minimo': item.estoque_minimo,
         'estoque_maximo': item.estoque_maximo,
-        'imagens': imagens
+        'imagens': imagens,
+        'fornecedor': item.fornecedor or ''
     })
+
+
+@app.route('/item/editar', methods=['POST'])
+@login_required
+def item_editar():
+    if current_user.role != 'Administrador':
+        flash('Acesso negado! Apenas administradores podem editar itens.', 'danger')
+        return redirect(url_for('listar_itens'))
+
+    item_id = request.form.get('item_id')
+    item = Item.query.get_or_404(item_id)
+
+    try:
+        item.descricao = request.form.get('descricao')
+        item.categoria = request.form.get('categoria')
+        item.fornecedor = request.form.get('fornecedor')
+        item.localizacao = request.form.get('localizacao')
+        
+        try:
+            preco = float(request.form.get('preco_unitario', '0').replace(',', '.'))
+            item.preco_unitario = preco
+        except ValueError:
+            item.preco_unitario = 0.0
+
+        item.estoque_minimo = int(request.form.get('estoque_minimo', 0))
+        item.estoque_maximo = int(request.form.get('estoque_maximo', 0))
+
+        # Processar novas imagens se enviadas
+        imagens = request.files.getlist('imagens')
+        if imagens and imagens[0].filename:
+            for img in imagens:
+                if img and img.filename:
+                    nome_seguro = secure_filename(f"{item.id}_{img.filename}")
+                    img.save(os.path.join(app.config['UPLOAD_ITENS'], nome_seguro))
+                    nova_img = ItemImagem(item_id=item.id, caminho_imagem=nome_seguro)
+                    db.session.add(nova_img)
+
+        db.session.commit()
+        flash('Peça atualizada com sucesso!', 'success')
+        return redirect(url_for('listar_itens'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao editar item: {e}")
+        flash(f'Erro ao atualizar a peça: {str(e)}', 'danger')
+        return redirect(url_for('listar_itens'))
+
+
+@app.route('/item/excluir/<int:item_id>', methods=['POST'])
+@login_required
+def item_excluir(item_id):
+    if current_user.role != 'Administrador':
+        flash('Acesso negado! Apenas administradores podem excluir itens.', 'danger')
+        return redirect(url_for('listar_itens'))
+
+    item = Item.query.get_or_404(item_id)
+
+    try:
+        # Excluir imagens associadas
+        for img in item.imagens:
+            caminho_arquivo = os.path.join('static', img.caminho_imagem)
+            try:
+                if os.path.exists(caminho_arquivo):
+                    os.remove(caminho_arquivo)
+            except:
+                pass
+            db.session.delete(img)
+
+        # Excluir movimentações associadas
+        MovimentacaoEstoque.query.filter_by(item_id=item_id).delete()
+
+        # Excluir o item
+        db.session.delete(item)
+        db.session.commit()
+
+        flash('Peça excluída com sucesso!', 'success')
+        return redirect(url_for('listar_itens'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao excluir item: {e}")
+        flash(f'Erro ao excluir a peça: {str(e)}', 'danger')
+        return redirect(url_for('listar_itens'))
 
 
 @app.route('/estoque/movimentar', methods=['POST'])
@@ -183,29 +298,52 @@ def estoque_movimentar():
     quantidade = int(request.form.get('quantidade', 0))
     nota_fiscal = request.form.get('nota_fiscal')
     os_id = request.form.get('os_id')
-
     item = Item.query.get_or_404(item_id)
-    if tipo == 'Entrada':
-        item.estoque_atual += quantidade
-    elif tipo == 'Baixa':
-        if item.estoque_atual < quantidade:
-            flash('Quantidade insuficiente em estoque para realizar a baixa!', 'danger')
-            return redirect(url_for('listar_itens'))
-        item.estoque_atual -= quantidade
 
-    mov = MovimentacaoEstoque(
-        item_id=item_id,
-        usuario_id=current_user.id,
-        tipo=tipo,
-        quantidade=quantidade,
-        nota_fiscal=nota_fiscal,
-        ordem_servico_id=int(os_id) if os_id else None,
-        data_movimentacao=datetime.utcnow()
-    )
-    db.session.add(mov)
-    db.session.commit()
-    flash(f'Movimentação de {tipo} registrada com sucesso!', 'success')
-    return redirect(url_for('listar_itens'))
+    # Tratamento da informação passada por OS
+    if not os_id or os_id.strip() == '':
+        os_id = None
+
+    # ========================================================
+    # VALIDAÇÃO DA ORDEM DE SERVIÇO (OS)
+    # ========================================================
+    if os_id is not None:
+        os_existe = OrdemServico.query.get(os_id)
+        if not os_existe:
+            flash("OS inválida", "danger")
+            return redirect(request.referrer or url_for('listar_itens'))
+
+    # =========================================================
+
+    try:
+        nova_movimentacao = MovimentacaoEstoque(
+            item_id=item.id,
+            usuario_id=current_user.id,
+            tipo=tipo,
+            quantidade=quantidade,
+            os_id=os_id,
+        )
+
+        # Atualizar o estoque_atual do item conforme o tipo de movimentação
+        if tipo == 'Entrada':
+            item.estoque_atual += quantidade
+        elif tipo == 'Baixa':
+            item.estoque_atual -= quantidade
+
+        db.session.add(nova_movimentacao)
+        db.session.commit()
+
+        flash("Movimentação de estoque registrada com sucesso!", "success")
+        # CORREÇÃO AQUI: Mudamos 'estoque_listar' para 'listar_itens' que é a função que existe no app.py
+        return redirect(url_for('listar_itens'))
+
+    except Exception as e:
+        db.session.rollback()
+        # DICA DE ANALISTA: Imprimir o erro no terminal ajuda muito a descobrir problemas ocultos durante o desenvolvimento
+        print(f"Erro detectado na movimentação: {e}")
+
+        flash("Erro interno ao salvar os dados.", "danger")
+        return redirect(request.referrer or url_for('listar_itens'))
 
 
 @app.route('/itens/relatorio')
@@ -234,11 +372,23 @@ def imprimir_relatorio_itens():
 @app.route('/maquinas')
 @login_required
 def listar_maquinas():
+    # Captura os filtros existentes
     codigo = request.args.get('codigo', '')
     descricao = request.args.get('descricao', '')
     linha = request.args.get('linha', '')
 
+    # NOVO: Captura o estado do checkbox enviado pelo Front-end
+    incluir_inativos = request.args.get('incluir_inativos') == 'true'
+
     query = Maquina.query
+
+    # Regra do filtro do Checkbox
+    if not incluir_inativos:
+        # Se NÃO for para incluir inativos, exibe apenas os que ativo for igual a True
+        query = query.filter(Maquina.ativo == True)
+    # Se for True, ele ignora esse filtro e traz tudo (Ativos e Inativos)
+
+    # Aplica os demais filtros de busca já existentes no seu sistema
     if codigo:
         query = query.filter(Maquina.codigo.ilike(f"%{codigo}%"))
     if descricao:
@@ -246,11 +396,16 @@ def listar_maquinas():
     if linha:
         query = query.filter(Maquina.linha.ilike(f"%{linha}%"))
 
-    maquinas = query.all()
-    todas_maquinas = Maquina.query.all()
-    pecas = Item.query.all()
-    return render_template('maquinas.html', maquinas=maquinas, todas_maquinas=todas_maquinas, pecas=pecas)
+    # Paginação (Ajuste conforme suas variáveis existentes)
+    page = request.args.get('page', 1, type=int)
+    pagination = query.order_by(Maquina.id.desc()).paginate(page=page, per_page=10, error_out=False)
+    maquinas = pagination.items
 
+    # Importante passar para o template as peças para o Modal de O.S que já estava lá
+    from models import Item
+    pecas = Item.query.filter(Item.estoque_atual > 0).all()
+
+    return render_template('maquinas.html', maquinas=maquinas, pagination=pagination, pecas=pecas)
 
 @app.route('/maquina/nova', methods=['POST'])
 @login_required
@@ -306,7 +461,7 @@ def maquina_excluir(id):
         except:
             pass
         db.session.delete(img)
-    db.session.delete(mq)
+    mq.ativo = False
     db.session.commit()
     flash('Equipamento excluído com sucesso!', 'success')
     return redirect(url_for('listar_maquinas'))
@@ -413,6 +568,106 @@ def ordem_nova():
     db.session.commit()
     flash('Ordem de Serviço aberta com sucesso!', 'success')
     return redirect(request.referrer or url_for('listar_ordens'))
+
+
+@app.route('/api/ordem/<int:os_id>')
+@login_required
+def api_ordem(os_id):
+    ordem = OrdemServico.query.get_or_404(os_id)
+    return jsonify({
+        'id': ordem.id,
+        'maquina_id': ordem.maquina_id,
+        'descricao_defeito': ordem.descricao_defeito,
+        'prazo_previsto': ordem.prazo_previsto.strftime('%Y-%m-%d'),
+        'status': ordem.status,
+        'data_abertura': ordem.data_abertura.isoformat() if ordem.data_abertura else None
+    })
+
+
+@app.route('/ordem/editar', methods=['POST'])
+@login_required
+def ordem_editar():
+    if current_user.role != 'Administrador':
+        flash('Acesso negado! Apenas administradores podem editar ordens.', 'danger')
+        return redirect(url_for('listar_ordens'))
+
+    os_id = request.form.get('os_id')
+    ordem = OrdemServico.query.get_or_404(os_id)
+
+    try:
+        ordem.maquina_id = request.form.get('maquina_id')
+        
+        prazo_str = request.form.get('prazo_previsto')
+        ordem.prazo_previsto = datetime.strptime(prazo_str, '%Y-%m-%d').date()
+        
+        ordem.descricao_defeito = request.form.get('descricao_defeito')
+        ordem.status = request.form.get('status', 'Pendente')
+
+        # Processar novas imagens se enviadas
+        imagens = request.files.getlist('imagens')
+        if imagens and imagens[0].filename:
+            for img in imagens:
+                if img and img.filename:
+                    nome_seguro = secure_filename(f"os_{ordem.id}_{img.filename}")
+                    img.save(os.path.join(app.config['UPLOAD_OS'], nome_seguro))
+                    nova_img = OrdemServicoImagem(ordem_servico_id=ordem.id, caminho_arquivo=f"uploads/os/{nome_seguro}")
+                    db.session.add(nova_img)
+
+        db.session.commit()
+        flash('Ordem de Serviço atualizada com sucesso!', 'success')
+        return redirect(url_for('listar_ordens'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao editar O.S.: {e}")
+        flash(f'Erro ao atualizar a O.S.: {str(e)}', 'danger')
+        return redirect(url_for('listar_ordens'))
+
+
+@app.route('/ordem/excluir/<int:os_id>', methods=['POST'])
+@login_required
+def ordem_excluir(os_id):
+    if current_user.role != 'Administrador':
+        flash('Acesso negado! Apenas administradores podem excluir ordens.', 'danger')
+        return redirect(url_for('listar_ordens'))
+
+    ordem = OrdemServico.query.get_or_404(os_id)
+
+    try:
+        # Excluir imagens
+        for img in ordem.imagens:
+            caminho_arquivo = os.path.join('static', img.caminho_arquivo)
+            try:
+                if os.path.exists(caminho_arquivo):
+                    os.remove(caminho_arquivo)
+            except:
+                pass
+            db.session.delete(img)
+
+        # Excluir itens previstos
+        for item_previsto in ordem.itens_previstos:
+            db.session.delete(item_previsto)
+
+        # Excluir movimentações
+        MovimentacaoEstoque.query.filter_by(os_id=os_id).delete()
+
+        # Restaurar máquina para status operando
+        maquina = Maquina.query.get(ordem.maquina_id)
+        if maquina:
+            maquina.status = 'Operando'
+
+        # Excluir a ordem
+        db.session.delete(ordem)
+        db.session.commit()
+
+        flash('Ordem de Serviço excluída com sucesso!', 'success')
+        return redirect(url_for('listar_ordens'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao excluir O.S.: {e}")
+        flash(f'Erro ao excluir a O.S.: {str(e)}', 'danger')
+        return redirect(url_for('listar_ordens'))
 
 
 # ----------------------------------------------------------------------------
@@ -525,6 +780,102 @@ def programar_manutencao():
     db.session.commit()
     flash('Manutenção programada com sucesso!', 'success')
     return redirect(url_for('calendario'))
+
+
+@app.route('/api/manutencao/<int:manutencao_id>')
+@login_required
+def api_manutencao(manutencao_id):
+    manutencao = ManutencaoProgramada.query.get_or_404(manutencao_id)
+    return jsonify({
+        'id': manutencao.id,
+        'maquina_id': manutencao.maquina_id,
+        'descricao_atividades': manutencao.descricao_atividades,
+        'data_programada': manutencao.data_programada.strftime('%Y-%m-%d'),
+        'status': manutencao.status
+    })
+
+
+@app.route('/manutencao/editar', methods=['POST'])
+@login_required
+def manutencao_editar():
+    if current_user.role not in ['Administrador', 'Tecnico']:
+        flash('Acesso negado!', 'danger')
+        return redirect(url_for('calendario'))
+
+    manutencao_id = request.form.get('manutencao_id')
+    manutencao = ManutencaoProgramada.query.get_or_404(manutencao_id)
+
+    try:
+        manutencao.maquina_id = request.form.get('maquina_id')
+        
+        data_str = request.form.get('data_programada')
+        manutencao.data_programada = datetime.strptime(data_str, '%Y-%m-%d').date()
+        
+        manutencao.descricao_atividades = request.form.get('descricao_atividades')
+        manutencao.status = request.form.get('status', 'Pendente')
+
+        db.session.commit()
+        flash('Manutenção atualizada com sucesso!', 'success')
+        return redirect(url_for('calendario'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao editar manutenção: {e}")
+        flash(f'Erro ao atualizar a manutenção: {str(e)}', 'danger')
+        return redirect(url_for('calendario'))
+
+
+@app.route('/manutencao/excluir/<int:manutencao_id>', methods=['POST'])
+@login_required
+def manutencao_excluir(manutencao_id):
+    if current_user.role not in ['Administrador', 'Tecnico']:
+        flash('Acesso negado!', 'danger')
+        return redirect(url_for('calendario'))
+
+    manutencao = ManutencaoProgramada.query.get_or_404(manutencao_id)
+
+    try:
+        # Se houver O.S. associada, excluir também
+        if manutencao.os_gerada_id:
+            os = OrdemServico.query.get(manutencao.os_gerada_id)
+            if os:
+                # Excluir imagens da O.S.
+                for img in os.imagens:
+                    caminho_arquivo = os.path.join('static', img.caminho_arquivo)
+                    try:
+                        if os.path.exists(caminho_arquivo):
+                            os.remove(caminho_arquivo)
+                    except:
+                        pass
+                    db.session.delete(img)
+
+                # Excluir itens previstos
+                for item_previsto in os.itens_previstos:
+                    db.session.delete(item_previsto)
+
+                # Excluir movimentações
+                MovimentacaoEstoque.query.filter_by(os_id=os.id).delete()
+
+                # Restaurar máquina
+                maquina = Maquina.query.get(os.maquina_id)
+                if maquina:
+                    maquina.status = 'Operando'
+
+                # Excluir a O.S.
+                db.session.delete(os)
+
+        # Excluir a manutenção programada
+        db.session.delete(manutencao)
+        db.session.commit()
+
+        flash('Manutenção programada excluída com sucesso!', 'success')
+        return redirect(url_for('calendario'))
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Erro ao excluir manutenção: {e}")
+        flash(f'Erro ao excluir a manutenção: {str(e)}', 'danger')
+        return redirect(url_for('calendario'))
 
 
 # ----------------------------------------------------------------------------

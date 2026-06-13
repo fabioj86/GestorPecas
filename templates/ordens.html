@@ -23,6 +23,7 @@
                     <th>Status</th>
                     <th>Insumos Previstos</th>
                     <th>Anexos</th>
+                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -52,6 +53,16 @@
                                 <img src="{{ url_for('static', filename=img.caminho_arquivo) }}" width="40" class="img-thumbnail">
                             </a>
                         {% endfor %}
+                    </td>
+                    <td>
+                        {% if current_user.role == 'Administrador' %}
+                        <button class="btn btn-sm btn-outline-warning" onclick="abrirModalEditarOS({{ os.id }})" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="confirmarExclusaoOS({{ os.id }})" title="Excluir">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -123,4 +134,95 @@
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modalEditarOS" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Editar Ordem de Serviço</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/ordem/editar" method="POST" enctype="multipart/form-data">
+                <div class="modal-body text-start">
+                    <input type="hidden" name="os_id" id="edit_os_id">
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Identificação da Máquina *</label>
+                            <select class="form-select" name="maquina_id" id="edit_maquina_id" required>
+                                <option value="">Selecione a máquina...</option>
+                                {% for m in maquinas %}
+                                    <option value="{{ m.id }}">{{ m.codigo }} - {{ m.descricao }} ({{ m.linha }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Prazo Previsto de Entrega *</label>
+                            <input type="date" class="form-control" name="prazo_previsto" id="edit_prazo_previsto" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Descrição do Defeito / Escopo do Serviço *</label>
+                        <textarea class="form-control" name="descricao_defeito" id="edit_descricao_defeito" rows="3" required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" name="status" id="edit_status">
+                            <option value="Pendente">Pendente</option>
+                            <option value="Concluída">Concluída</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Anexar Novas Fotos (Opcional)</label>
+                        <input type="file" class="form-control" name="imagens" multiple accept="image/*">
+                        <small class="text-muted">Deixe em branco para manter as fotos atuais</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Atualizar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Função para abrir modal de edição
+async function abrirModalEditarOS(osId) {
+    try {
+        const response = await fetch(`/api/ordem/${osId}`);
+        if (!response.ok) throw new Error('Erro ao carregar dados');
+        
+        const data = await response.json();
+        
+        document.getElementById('edit_os_id').value = osId;
+        document.getElementById('edit_maquina_id').value = data.maquina_id;
+        document.getElementById('edit_prazo_previsto').value = data.prazo_previsto;
+        document.getElementById('edit_descricao_defeito').value = data.descricao_defeito;
+        document.getElementById('edit_status').value = data.status;
+        
+        const modal = new bootstrap.Modal(document.getElementById('modalEditarOS'));
+        modal.show();
+        
+    } catch (error) {
+        alert('Erro ao carregar informações da O.S.');
+        console.error(error);
+    }
+}
+
+// Função para confirmar exclusão
+function confirmarExclusaoOS(osId) {
+    if (confirm(`Tem certeza que deseja excluir a O.S. #${osId}? Esta ação é irreversível.`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/ordem/excluir/${osId}`;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
 {% endblock %}

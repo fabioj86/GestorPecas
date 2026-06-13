@@ -63,6 +63,7 @@ class Maquina(db.Model):
     descricao = db.Column(db.String(255), nullable=False)
     linha = db.Column(db.String(100))
     status = db.Column(db.String(50), default='Operando')  # Ex: Operando, Defeito, Manutencao
+    ativo = db.Column(db.Boolean, default=True)
 
     # Relacionamentos
     imagens = db.relationship('MaquinaImagem', backref='maquina', lazy=True)
