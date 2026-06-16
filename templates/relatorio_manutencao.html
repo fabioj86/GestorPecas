@@ -220,12 +220,9 @@
 
     {% if not is_pdf %}
     <div class="btn-acoes">
-        <button onclick="window.print();" class="btn btn-secondary">
-            <i class="bi bi-printer"></i> Imprimir via Navegador
+        <button onclick="window.print();" class="btn btn-primary">
+            <i class="bi bi-printer"></i> Imprimir Relatório
         </button>
-        <a href="/relatorios/pdf" class="btn btn-primary">
-            <i class="bi bi-file-earmark-pdf"></i> Exportar Arquivo PDF
-        </a>
     </div>
     {% endif %}
 

@@ -102,33 +102,48 @@ class OrdemServico(db.Model):
 
 
 class OrdemServicoImagem(db.Model):
-    __tablename__ = 'os_imagens'
+    __tablename__ = 'ordem_servico_imagens'
 
     id = db.Column(db.Integer, primary_key=True)
-    os_id = db.Column(db.Integer, db.ForeignKey('ordens_servico.id', ondelete='CASCADE'), nullable=False)
+    ordem_id = db.Column(db.Integer, db.ForeignKey('ordens_servico.id'), nullable=False)
     caminho_arquivo = db.Column(db.String(255), nullable=False)
 
+    # ADICIONE ESTE BLOCO ABAIXO DENTRO DA CLASSE OrdemServicoImagem:
+    def __init__(self, **kwargs):
+        # Se a rota tentar enviar 'ordem_servico_id', interceptamos e convertemos para 'ordem_id'
+        if 'ordem_servico_id' in kwargs and 'ordem_id' not in kwargs:
+            kwargs['ordem_id'] = kwargs.pop('ordem_servico_id')
+
+        # Se tentar enviar 'ordem_id', garantimos consistência interna para o objeto mapeado
+        elif 'ordem_id' in kwargs and 'ordem_servico_id' not in kwargs:
+            kwargs['ordem_servico_id'] = kwargs['ordem_id']
+
+        super(OrdemServicoImagem, self).__init2__ if hasattr(self, '__init2__') else super().__init__(**kwargs)
 
 # -----------------------------------------------------------------------------
 # MODELO: VÍNCULO DE INSUMOS PREVISTOS NA O.S. (CORREÇÃO DO ERRO APLICADA AQUI)
 # -----------------------------------------------------------------------------
 class OrdemServicoItemPrevisto(db.Model):
-    __tablename__ = 'os_itens_previstos'
+    __tablename__ = 'ordem_servico_itens_previstos'
 
     id = db.Column(db.Integer, primary_key=True)
-    os_id = db.Column(db.Integer, db.ForeignKey('ordens_servico.id', ondelete='CASCADE'), nullable=False)
-    item_sku = db.Column(db.String(50), db.ForeignKey('itens.sku'), nullable=False)
-    quantidade_prevista = db.Column(db.Integer, nullable=False, default=1)
+    ordem_servico_id = db.Column(db.Integer, db.ForeignKey('ordens_servico.id'), nullable=False)
+    item_id = db.Column(db.Integer, db.ForeignKey('itens.id'), nullable=False)
+    quantidade_prevista = db.Column(db.Integer, nullable=False)
 
-    # CORREÇÃO: Adicionado 'foreign_keys' para mapear explicitamente alvos fora da Chave Primária padrão
-    item = db.relationship(
-        'Item',
-        primaryjoin="OrdemServicoItemPrevisto.item_sku==Item.sku",
-        foreign_keys=[item_sku],
-        backref='os_links',
-        lazy=True
-    )
+    item = db.relationship('Item', backref='ordens_previstas', lazy=True)
 
+    # COLE ESTE BLOCO ABAIXO DENTRO DA CLASSE:
+    def __init__(self, **kwargs):
+        # Se o sistema passar 'ordem_id', nós automaticamente convertemos para 'ordem_servico_id'
+        if 'ordem_id' in kwargs and 'ordem_servico_id' not in kwargs:
+            kwargs['ordem_servico_id'] = kwargs.pop('ordem_id')
+
+        # Se passar 'ordem_servico_id', nós garantimos que o 'ordem_id' virtual também seja aceito
+        elif 'ordem_servico_id' in kwargs and 'ordem_id' not in kwargs:
+            kwargs['ordem_id'] = kwargs['ordem_servico_id']
+
+        super(OrdemServicoItemPrevisto, self).__init2__ if hasattr(self, '__init2__') else super().__init__(**kwargs)
 
 # -----------------------------------------------------------------------------
 # MODELO: MOVIMENTAÇÃO DE ESTOQUE (ENTRADAS / BAIXAS)

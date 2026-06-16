@@ -43,13 +43,13 @@
 
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('listar_ordens') }}">
-                            <i class="bi bi-file-earmark-wrench"></i> Ordens de Serviço
+                            <i class="bi bi-gear-wide"></i> Ordens de Serviço
                         </a>
                     </li>
 
                     {% if current_user.role in ['Administrador', 'Tecnico'] %}
                     <li class="nav-item">
-                        <a class="nav-link text-info fw-bold" href="/manutencao/calendario">
+                        <a class="nav-link" href="/manutencao/calendario">
                             <i class="bi bi-calendar3"></i> Calendário
                         </a>
                     </li>
@@ -65,7 +65,7 @@
 
                     {% if current_user.role == 'Administrador' %}
                     <li class="nav-item">
-                        <a class="nav-link text-warning fw-bold" href="/usuarios">
+                        <a class="nav-link" href="/usuarios">
                             <i class="bi bi-people"></i> Usuários
                         </a>
                     </li>

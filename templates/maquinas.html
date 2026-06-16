@@ -12,9 +12,12 @@
     </div>
 
     <div class="d-flex gap-2">
-        <a href="{{ url_for('relatorio_maquinas', codigo=request.args.get('codigo', ''), descricao=request.args.get('descricao', ''), linha=request.args.get('linha', '')) }}" target="_blank" class="btn btn-primary">
+    <!--    <button onclick="imprimirRelatorioComFiltros()" class="btn btn-primary">
             <i class="bi bi-printer"></i> Imprimir Relatório
-        </a>
+        </button>
+
+ * O botão de relatório precisa ser corrigido, esta apresentando falha. Não esta exibindo as informações, o layout esta OK
+    --!>
 
         {% if current_user.role in ['Administrador', 'Tecnico'] %}
         <button class="btn btn-warning text-dark fw-bold" data-bs-toggle="modal" data-bs-target="#modalNovaOSGeral">
@@ -37,8 +40,26 @@ function filtrarInativos() {
         urlParams.delete('incluir_inativos');
     }
 
-    // Recarrega a página atual mantendo os filtros de código, descrição e injetando o de inativos
     window.location.search = urlParams.toString();
+}
+
+// NOVA FUNÇÃO: Captura todos os filtros da tela e envia para o relatório
+function imprimirRelatorioComFiltros() {
+    // Captura o estado atual do switch de inativos
+    const checkInativos = document.getElementById('checkInativos');
+    const incluirInativos = checkInativos && checkInativos.checked ? 'true' : 'false';
+
+    // Captura o que estiver digitado nos campos de busca por texto (se houver)
+    const urlParams = new URLSearchParams(window.location.search);
+    const codigo = urlParams.get('codigo') || '';
+    const descricao = urlParams.get('descricao') || '';
+    const linha = urlParams.get('linha') || '';
+
+    // Monta a URL final da rota de impressão contendo todos os filtros combinados
+    const urlRelatorio = `/relatorio/maquinas?codigo=${encodeURIComponent(codigo)}&descricao=${encodeURIComponent(descricao)}&linha=${encodeURIComponent(linha)}&incluir_inativos=${incluirInativos}`;
+
+    // Abre o relatório em uma nova aba com os filtros idênticos aos da tela
+    window.open(urlRelatorio, '_blank');
 }
 </script>
 
@@ -74,9 +95,9 @@ function filtrarInativos() {
                     <th>Ações</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody style="cursor: pointer;">
                 {% for m in maquinas %}
-                <tr>
+                <tr class="linha-maquina" data-maquina-id="{{ m.id }}">
                     <td>
                         {% if m.imagens %}
                             <img src="{{ url_for('static', filename=m.imagens[0].caminho_arquivo) }}" width="50" class="img-thumbnail rounded">
@@ -87,24 +108,24 @@ function filtrarInativos() {
                     <td class="fw-bold">{{ m.codigo }}</td>
                     <td class="text-start">{{ m.descricao }}</td>
                     <td>{{ m.linha }}</td>
-                    <td>
+                    <td onclick="event.stopPropagation();">
                         {% if m.status == 'Operando' %}
                             <span class="badge bg-success"><i class="bi bi-check-circle"></i> Operando</span>
                         {% else %}
                             <span class="badge bg-danger"><i class="bi bi-exclamation-triangle"></i> Defeito</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td onclick="event.stopPropagation();">
                         <div class="btn-group" role="group">
-                            <button class="btn btn-sm btn-primary" onclick="abrirModalAtualizar('{{ m.id }}', '{{ m.ordem_id_aberta }}')">
+                            <button class="btn btn-sm btn-primary" onclick="event.stopPropagation(); abrirModalAtualizar('{{ m.id }}', '{{ m.ordem_id_aberta }}')">
                                 <i class="bi bi-pencil-square"></i> Atualizar
                             </button>
 
                             {% if current_user.role == 'Administrador' %}
-                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditarMaquina{{ m.id }}">
+                            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalEditarMaquina{{ m.id }}" onclick="event.stopPropagation();">
                                 <i class="bi bi-pencil"></i> Editar
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalExcluirMaquina{{ m.id }}">
+                            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#modalExcluirMaquina{{ m.id }}" onclick="event.stopPropagation();">
                                 <i class="bi bi-trash"></i> Excluir
                             </button>
                             {% endif %}
@@ -197,16 +218,8 @@ function filtrarInativos() {
                             <label class="form-label fw-bold">Selecione o Equipamento / Máquina *</label>
                             <select class="form-select" name="maquina_id" required>
                                 <option value="" disabled selected>Escolha uma máquina...</option>
-                                {% for mq in todas_maquinas %}
-                                    <tr {% if not mq.ativo %}class="table-secondary text-muted" style="opacity: 0.7;"{% endif %}>
-                                        <td>{{ mq.codigo }}</td>
-                                        <td>
-                                            {{ mq.descricao }}
-                                            {% if not mq.ativo %}
-                                                <span class="badge bg-danger ms-2">Inativa/Excluída</span>
-                                            {% endif %}
-                                        </td>
-                                        </tr>
+                                {% for mq in maquinas %}
+                                    <option value="{{ mq.id }}">{{ mq.codigo }} - {{ mq.descricao }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -218,7 +231,7 @@ function filtrarInativos() {
 
                     <div class="mb-3">
                         <label class="form-label fw-bold">Descrição do Defeito / Escopo do Serviço *</label>
-                        <textarea class="form-control" name="descricao_defeito" rows="3" required placeholder="Detalhe os sintomas do problema mecânico/elétrico apresentado..."></textarea>
+                        <textarea class="form-control" name="descricao_defeito" rows="3" required placeholder="Detalhe os sintomas do problem mecânico/elétrico apresentado..."></textarea>
                     </div>
 
                     <div class="card mb-3 border-secondary">
@@ -332,23 +345,130 @@ function filtrarInativos() {
     </div>
 </div>
 
+<div class="modal fade" id="modalDetalhesMaquina" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-cpu"></i> Ficha Técnica do Equipamento: <span id="detalhe_maq_codigo"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-start">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6><strong>Descrição / Nome Fantasia:</strong></h6>
+                        <p id="detalhe_maq_descricao" class="fs-5 text-secondary fw-bold"></p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6><strong>Linha / Setor:</strong></h6>
+                        <p id="detalhe_maq_linha" class="fs-6"></p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6><strong>Status Operacional:</strong></h6>
+                        <p id="detalhe_maq_status"></p>
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-md-4">
+                        <h6><strong>Código de Controle Interno:</strong></h6>
+                        <p id="detalhe_maq_codigo_identificacao" class="text-muted"></p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6><strong>ID do Registro:</strong></h6>
+                        <p id="detalhe_maq_id" class="text-muted"></p>
+                    </div>
+                </div>
+                <hr>
+                <h5><i class="bi bi-journal-text"></i> Histórico Recente de Manutenções (O.S.)</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped border mt-2 text-center align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nº O.S.</th>
+                                <th>Prazo de Resolução</th>
+                                <th class="text-start">Defeito Relatado / Escopo</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="detalhe_maq_historico_corpo">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar Ficha</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+// Modificado: Monitoramento assíncrono para os cliques nas linhas da tabela de máquinas
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.linha-maquina').forEach(row => {
+        row.addEventListener('click', async function() {
+            const maquinaId = this.getAttribute('data-maquina-id');
+
+            try {
+                const response = await fetch(`/api/maquinas/${maquinaId}`);
+                if (!response.ok) throw new Error('Não foi possível processar a requisição de leitura.');
+
+                const data = await response.json();
+
+                // Preenche as tags internas do modal com os dados capturados da API
+                document.getElementById('detalhe_maq_id').innerText = `#${data.id}`;
+                document.getElementById('detalhe_maq_codigo').innerText = data.codigo;
+                document.getElementById('detalhe_maq_codigo_identificacao').innerText = data.codigo;
+                document.getElementById('detalhe_maq_descricao').innerText = data.descricao;
+                document.getElementById('detalhe_maq_linha').innerText = data.linha_producao;
+
+                // Trata as variações visuais da badge de status de forma isolada
+                const statusEl = document.getElementById('detalhe_maq_status');
+                statusEl.innerText = data.status;
+                statusEl.className = data.status === 'Operando' ? 'badge bg-success fs-6' : 'badge bg-danger fs-6';
+
+                // Constrói dinamicamente as linhas da tabela de histórico de manutenção
+                const tabelaCorpo = document.getElementById('detalhe_maq_historico_corpo');
+                tabelaCorpo.innerHTML = '';
+
+                if (!data.historico || data.historico.length === 0) {
+                    tabelaCorpo.innerHTML = '<tr><td colspan="4" class="text-center text-muted small p-3">Nenhuma ordem de serviço vinculada a este equipamento.</td></tr>';
+                } else {
+                    data.historico.forEach(os => {
+                        const badgeClass = os.status === 'Pendente' ? 'bg-warning text-dark' : 'bg-success';
+                        tabelaCorpo.innerHTML += `
+                            <tr>
+                                <td class="fw-bold">#${os.id}</td>
+                                <td>${os.data}</td>
+                                <td class="text-start">${os.descricao}</td>
+                                <td><span class="badge ${badgeClass}">${os.status}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // Instancia e abre o modal de exibição estruturada
+                const modalFicha = new bootstrap.Modal(document.getElementById('modalDetalhesMaquina'));
+                modalFicha.show();
+
+            } catch (error) {
+                console.error(error);
+                alert('Erro ao processar e carregar a ficha técnica do equipamento selecionado.');
+            }
+        });
+    });
+});
+
 function abrirModalAtualizar(maquinaId) {
-    // Define o ID da máquina no campo oculto
     document.getElementById('atualizar_maquina_id').value = maquinaId;
-    // Limpa os campos para novos dados
     document.getElementById('detalhes_manutencao').value = '';
     document.getElementById('novo_prazo').value = '';
     document.getElementById('divProrrogarPrazo').style.display = 'none';
-    // Configura a ação padrão do formulário para Finalizar
     var form = document.getElementById('formAtualizarManutencao');
     form.action = "/maquinas/finalizar-manutencao";
-    // Restaura o texto original do botão de prorrogar caso tenha sido clicado antes
     var btnProrrogar = document.getElementById('btnAcaoProrrogar');
     btnProrrogar.type = "button";
     btnProrrogar.innerText = "Prorrogar Prazo";
 
-    // Exibe o modal
     var m = new bootstrap.Modal(document.getElementById('modalAtualizarManutencao'));
     m.show();
 }
@@ -359,16 +479,13 @@ function activarProrrogacao() {
     var form = document.getElementById('formAtualizarManutencao');
     var btnProrrogar = document.getElementById('btnAcaoProrrogar');
 
-    // Se o campo de prazo não estiver visível, exibe-o e transforma o botão em 'submit'
     if (divPrazo.style.display === 'none' || divPrazo.style.display === '') {
         divPrazo.style.display = 'block';
         inputPrazo.required = true;
         form.action = "/maquinas/prorrogagar-manutencao";
         btnProrrogar.innerText = "Confirmar Prorrogação";
-        // Pequeno timeout para evitar o submit imediato no primeiro clique
         setTimeout(() => { btnProrrogar.type = "submit"; }, 100);
     }
 }
 </script>
-
 {% endblock %}

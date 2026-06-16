@@ -26,9 +26,9 @@
                     <th>Ações</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody style="cursor: pointer;">
                 {% for os in ordens %}
-                <tr>
+                <tr class="linha-os" data-os-id="{{ os.id }}">
                     <td class="fw-bold">#{{ os.id }}</td>
                     <td><span class="badge bg-secondary">{{ os.maquina.codigo }}</span> {{ os.maquina.descricao }}</td>
                     <td>{{ os.descricao_defeito }}</td>
@@ -49,17 +49,17 @@
                     </td>
                     <td>
                         {% for img in os.imagens %}
-                            <a href="{{ url_for('static', filename=img.caminho_arquivo) }}" target="_blank">
+                            <a href="{{ url_for('static', filename=img.caminho_arquivo) }}" target="_blank" onclick="event.stopPropagation();">
                                 <img src="{{ url_for('static', filename=img.caminho_arquivo) }}" width="40" class="img-thumbnail">
                             </a>
                         {% endfor %}
                     </td>
-                    <td>
+                    <td onclick="event.stopPropagation();">
                         {% if current_user.role == 'Administrador' %}
-                        <button class="btn btn-sm btn-outline-warning" onclick="abrirModalEditarOS({{ os.id }})" title="Editar">
+                        <button class="btn btn-sm btn-outline-warning" onclick="event.stopPropagation(); abrirModalEditarOS({{ os.id }})" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="confirmarExclusaoOS({{ os.id }})" title="Excluir">
+                        <button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); confirmarExclusaoOS({{ os.id }})" title="Excluir">
                             <i class="bi bi-trash"></i>
                         </button>
                         {% endif %}
@@ -145,7 +145,7 @@
             <form action="/ordem/editar" method="POST" enctype="multipart/form-data">
                 <div class="modal-body text-start">
                     <input type="hidden" name="os_id" id="edit_os_id">
-                    
+
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Identificação da Máquina *</label>
@@ -190,31 +190,144 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalDetalhesOS" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title"><i class="bi bi-file-earmark-wrench"></i> Detalhes da Ordem de Serviço <span id="detalhe_id"></span></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-start">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <h6><strong>Equipamento / Máquina:</strong></h6>
+                        <p><span class="badge bg-secondary" id="detalhe_maquina_codigo"></span> <span id="detalhe_maquina_descricao"></span></p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6><strong>Prazo Limite:</strong></h6>
+                        <p id="detalhe_prazo"></p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6><strong>Status Atual:</strong></h6>
+                        <p id="detalhe_status"></p>
+                    </div>
+                </div>
+                <hr>
+                <div class="mb-3">
+                    <h6><strong>Descrição do Defeito / Escopo do Serviço:</strong></h6>
+                    <div class="p-3 bg-light border rounded" id="detalhe_defeito" style="white-space: pre-line;"></div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <h6><strong>Peças / Insumos Planejados:</strong></h6>
+                        <ul class="list-group" id="detalhe_insumos_lista">
+                            </ul>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h6><strong>Imagens / Evidências Anexadas:</strong></h6>
+                        <div class="d-flex flex-wrap gap-2" id="detalhe_imagens_container">
+                            </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-// Função para abrir modal de edição
+// Aguarda o carregamento do DOM para gerenciar as ações de clique nas linhas
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.linha-os').forEach(row => {
+        row.addEventListener('click', async function() {
+            const osId = this.getAttribute('data-os-id');
+
+            try {
+                // Requisição assíncrona para buscar os detalhes estruturados da O.S. via API dedicada
+                const response = await fetch(`/api/ordens/${osId}`);
+                if (!response.ok) throw new Error('Falha ao processar dados');
+
+                const data = await response.json();
+
+                // Popula as marcações textuais internas do modal
+                document.getElementById('detalhe_id').innerText = `#${data.id}`;
+                document.getElementById('detalhe_maquina_codigo').innerText = data.maquina_codigo;
+                document.getElementById('detalhe_maquina_descricao').innerText = data.maquina_descricao;
+                document.getElementById('detalhe_prazo').innerText = data.prazo_previsto;
+                document.getElementById('detalhe_defeito').innerText = data.descricao_defeito;
+
+                // Define a badge de status de forma responsiva
+                const statusEl = document.getElementById('detalhe_status');
+                statusEl.innerText = data.status;
+                statusEl.className = data.status === 'Pendente' ? 'badge bg-warning text-dark fs-6' : 'badge bg-success fs-6';
+
+                // Limpa e reconstrói dinamicamente a listagem de insumos aplicados
+                const listaInsumos = document.getElementById('detalhe_insumos_lista');
+                listaInsumos.innerHTML = '';
+                if(data.insumos.length === 0) {
+                    listaInsumos.innerHTML = '<li class="list-group-item text-muted small">Nenhum insumo planejado para esta O.S.</li>';
+                } else {
+                    data.insumos.forEach(ins => {
+                        listaInsumos.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                            ${ins.descricao} <span class="badge bg-primary rounded-pill">Qtd: ${ins.quantidade}</span>
+                        </li>`;
+                    });
+                }
+
+                // Limpa e reconstrói o repositório visual de imagens anexadas
+                const containerImagens = document.getElementById('detalhe_imagens_container');
+                containerImagens.innerHTML = '';
+                if(data.imagens.length === 0) {
+                    containerImagens.innerHTML = '<p class="text-muted small m-0">Nenhuma imagem anexada a esta O.S.</p>';
+                } else {
+                    data.imagens.forEach(caminho => {
+                        const src = caminho.startsWith('static/') ? `/${caminho}` : `/static/${caminho}`;
+                        containerImagens.innerHTML += `
+                            <a href="${src}" target="_blank" onclick="event.stopPropagation();">
+                                <img src="${src}" class="img-thumbnail" style="width: 90px; height: 90px; object-fit: cover;" title="Clique para ampliar">
+                            </a>`;
+                    });
+                }
+
+                // Abre de forma nativa o modal de visualização de dados
+                const modalVisualizar = new bootstrap.Modal(document.getElementById('modalDetalhesOS'));
+                modalVisualizar.show();
+
+            } catch (error) {
+                console.error(error);
+                alert('Erro ao carregar os detalhes completos da Ordem de Serviço.');
+            }
+        });
+    });
+});
+
+// Função padrão para carregar e abrir o modal de edição de registros
 async function abrirModalEditarOS(osId) {
     try {
         const response = await fetch(`/api/ordem/${osId}`);
         if (!response.ok) throw new Error('Erro ao carregar dados');
-        
+
         const data = await response.json();
-        
+
         document.getElementById('edit_os_id').value = osId;
         document.getElementById('edit_maquina_id').value = data.maquina_id;
         document.getElementById('edit_prazo_previsto').value = data.prazo_previsto;
         document.getElementById('edit_descricao_defeito').value = data.descricao_defeito;
         document.getElementById('edit_status').value = data.status;
-        
+
         const modal = new bootstrap.Modal(document.getElementById('modalEditarOS'));
         modal.show();
-        
+
     } catch (error) {
         alert('Erro ao carregar informações da O.S.');
         console.error(error);
     }
 }
 
-// Função para confirmar exclusão
+// Função padrão para confirmar exclusão segura de registros
 function confirmarExclusaoOS(osId) {
     if (confirm(`Tem certeza que deseja excluir a O.S. #${osId}? Esta ação é irreversível.`)) {
         const form = document.createElement('form');
